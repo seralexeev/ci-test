@@ -1,7 +1,6 @@
-name-template: "web-api/$PATCH"
-tag-template: "web-api/$PATCH"
-version-template: "0.0.$PATCH"
-change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
+name-template: "web-api/$RESOLVED_VERSION"
+tag-template: "web-api/$RESOLVED_VERSION"
+change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
 version-resolver:
   default: patch
 template: |
