@@ -56,28 +56,45 @@ jobs:
         run: |
           LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
 
-          # Get the date of the last tag if it exists
           if [ -z "$LATEST_TAG" ]; then
             # Get all merged PRs if no previous release
             echo "No previous tag found, getting all merged PRs..."
-            PRS=$(gh pr list --state merged --base main --json number,title,mergedAt --limit 1000)
+            COMMIT_RANGE="main"
           else
-            # Get the date of the last tag
-            TAG_DATE=$(git log -1 --format=%aI $LATEST_TAG)
-            echo "Last tag date: ${TAG_DATE}"
-
-            # Get all merged PRs since that date
-            PRS=$(gh pr list --state merged --base main --json number,title,mergedAt --limit 1000 | \
-                  jq --arg tag_date "$TAG_DATE" '[.[] | select(.mergedAt > $tag_date)]')
+            # Get commits since the last tag
+            echo "Getting PRs since tag: ${LATEST_TAG}"
+            COMMIT_RANGE="${LATEST_TAG}..main"
           fi
 
-          # Build PR list and summary
-          PR_LIST=$(echo "$PRS" | jq -r '[.[].number] | map("#" + tostring) | join(", ")')
-          PR_SUMMARY=$(echo "$PRS" | jq -r '.[] | "• #" + (.number|tostring) + ": " + .title')
+          # Get all commit SHAs in the range
+          COMMITS=$(git log $COMMIT_RANGE --format="%H" --merges)
 
-          if [ -z "$PR_LIST" ] || [ "$PR_LIST" = "" ]; then
+          if [ -z "$COMMITS" ]; then
+            echo "No merge commits found"
             PR_LIST="No PRs found"
             PR_SUMMARY="No PRs found since last release"
+          else
+            # Extract PR numbers from merge commits and get PR details
+            PR_NUMBERS=$(echo "$COMMITS" | while read sha; do
+              git log -1 --format="%s" $sha | grep -oP '(?<=Merge pull request #)\d+' || true
+            done | sort -u)
+
+            if [ -z "$PR_NUMBERS" ]; then
+              echo "No PR numbers found in merge commits"
+              PR_LIST="No PRs found"
+              PR_SUMMARY="No PRs found since last release"
+            else
+              # Get PR details for each number
+              PR_DETAILS=""
+              for pr_num in $PR_NUMBERS; do
+                PR_INFO=$(gh pr view $pr_num --json number,title --jq '"\(.number)|\(.title)"')
+                PR_DETAILS="${PR_DETAILS}${PR_INFO}"$'\n'
+              done
+
+              # Build PR list and summary
+              PR_LIST=$(echo "$PR_DETAILS" | grep -v '^$' | cut -d'|' -f1 | sed 's/^/#/' | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+              PR_SUMMARY=$(echo "$PR_DETAILS" | grep -v '^$' | awk -F'|' '{print "• #" $1 ": " $2}')
+            fi
           fi
 
           # Save to output (use delimiter for multiline)
