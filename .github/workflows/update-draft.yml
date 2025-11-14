@@ -29,5 +29,8 @@ jobs:
         with:
           node-version: '24.5.0'
 
+      - name: Install dependencies
+        run: npm install
+
       - name: Create or update release draft
         run: ./scripts/src/ci_update_draft_release.ts web-api

@@ -1,0 +1,26 @@
+{
+  "name": "ci-test",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seralexeev/ci-test.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/seralexeev/ci-test/issues"
+  },
+  "homepage": "https://github.com/seralexeev/ci-test#readme",
+  "dependencies": {
+    "zx": "8.8.5",
+    "zod": "4.1.12",
+    "@octokit/rest": "^22.0.1"
+  }
+}
