@@ -5,33 +5,42 @@ NEXT_TAG="$1"
 NEXT_VERSION="$2"
 LATEST_TAG="$3"
 
-if [ -z "$NEXT_TAG" ] || [ -z "$NEXT_VERSION" ]; then
+if [ -z "$NEXT_TAG" ] || [ -z "$NEXT_VERSION" ] || [ -z "$LATEST_TAG" ]; then
   echo "Usage: $0 <next_tag> <next_version> <latest_tag>"
   exit 1
 fi
 
-# Delete existing draft release and tag if they exist
-echo "Checking for existing draft release for ${NEXT_TAG}..."
-gh release delete ${NEXT_TAG} --yes 2>/dev/null || true
-git tag -d ${NEXT_TAG} 2>/dev/null || true
-git push origin :refs/tags/${NEXT_TAG} 2>/dev/null || true
+# Generate release notes using GitHub API
+NOTES=$(gh api repos/{owner}/{repo}/releases/generate-notes \
+  -f tag_name="$NEXT_TAG" \
+  -f target_commitish="main" \
+  -f previous_tag_name="$LATEST_TAG" \
+  --jq '.body')
 
-# Create new draft with auto-generated notes
-echo "Creating draft release for ${NEXT_TAG}..."
+# Check if draft release already exists
+EXISTING_DRAFT=$(gh release view ${NEXT_TAG} --json isDraft --jq '.isDraft' 2>/dev/null || echo "false")
 
-if [ -z "$LATEST_TAG" ]; then
-  gh release create ${NEXT_TAG} \
+if [ "$EXISTING_DRAFT" = "true" ]; then
+  echo "Updating existing draft release for ${NEXT_TAG}..."
+  gh release edit ${NEXT_TAG} \
     --draft \
     --title "Release ${NEXT_VERSION}" \
-    --generate-notes \
-    --target main
+    --notes "$NOTES"
+  echo "Draft release updated"
 else
+  echo "Creating new draft release for ${NEXT_TAG}..."
+  # Delete if exists (in case there's a non-draft release)
+  gh release delete ${NEXT_TAG} --yes 2>/dev/null || true
+  git tag -d ${NEXT_TAG} 2>/dev/null || true
+  git push origin :refs/tags/${NEXT_TAG} 2>/dev/null || true
+
+  # Create draft with generated notes
   gh release create ${NEXT_TAG} \
     --draft \
     --title "Release ${NEXT_VERSION}" \
-    --notes-start-tag "${LATEST_TAG}" \
-    --generate-notes \
+    --notes "$NOTES" \
     --target main
+  echo "Draft release created"
 fi
 
 RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${NEXT_TAG}"

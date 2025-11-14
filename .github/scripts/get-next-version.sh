@@ -5,22 +5,21 @@ set -e
 LATEST_TAG=$(git tag -l "web-api/*" | sort -V | tail -n 1)
 
 if [ -z "$LATEST_TAG" ]; then
-  # No existing tags, start with 0.0.1
-  NEXT_VERSION="0.0.1"
-  LATEST_TAG=""
-else
-  # Extract version number and increment patch
-  VERSION=${LATEST_TAG#web-api/}
-  IFS='.' read -r -a VERSION_PARTS <<< "$VERSION"
-  MAJOR="${VERSION_PARTS[0]}"
-  MINOR="${VERSION_PARTS[1]}"
-  PATCH="${VERSION_PARTS[2]}"
-
-  # Increment patch version
-  PATCH=$((PATCH + 1))
-  NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+  echo "Error: No previous tag found matching web-api/*"
+  echo "Please create the first tag manually (e.g., web-api/0.0.1)"
+  exit 1
 fi
 
+# Extract version number and increment patch
+VERSION=${LATEST_TAG#web-api/}
+IFS='.' read -r -a VERSION_PARTS <<< "$VERSION"
+MAJOR="${VERSION_PARTS[0]}"
+MINOR="${VERSION_PARTS[1]}"
+PATCH="${VERSION_PARTS[2]}"
+
+# Increment patch version
+PATCH=$((PATCH + 1))
+NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
 NEXT_TAG="web-api/${NEXT_VERSION}"
 
 # Output to GitHub Actions
