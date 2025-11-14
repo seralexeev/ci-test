@@ -1,14 +1,15 @@
-name: Create Release
+name: Release Published
 
 on:
-  workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: write
   pull-requests: read
 
 jobs:
-  create-release:
+  on-release-published:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -16,109 +17,36 @@ jobs:
         with:
           fetch-depth: 0  # Fetch all history for tags
 
-      - name: Get latest tag and increment version
-        id: version
+      - name: Get release info
+        id: release_info
         run: |
-          # Get the latest tag matching web-api/*
-          LATEST_TAG=$(git tag -l "web-api/*" | sort -V | tail -n 1)
+          RELEASE_TAG="${{ github.event.release.tag_name }}"
+          RELEASE_NAME="${{ github.event.release.name }}"
 
-          if [ -z "$LATEST_TAG" ]; then
-            # No existing tags, start with 0.0.1
-            NEW_VERSION="0.0.1"
-            LATEST_TAG=""
-          else
-            # Extract version number and increment patch
-            VERSION=${LATEST_TAG#web-api/}
-            IFS='.' read -r -a VERSION_PARTS <<< "$VERSION"
-            MAJOR="${VERSION_PARTS[0]}"
-            MINOR="${VERSION_PARTS[1]}"
-            PATCH="${VERSION_PARTS[2]}"
-
-            # Increment patch version
-            PATCH=$((PATCH + 1))
-            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-          fi
-
-          NEW_TAG="web-api/${NEW_VERSION}"
-
-          echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
-          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
-          echo "new_tag=${NEW_TAG}" >> $GITHUB_OUTPUT
-
-          echo "Latest tag: ${LATEST_TAG}"
-          echo "New version: ${NEW_VERSION}"
-          echo "New tag: ${NEW_TAG}"
-
-      - name: Get merged PRs since last release
-        id: get_prs
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
-
-          if [ -z "$LATEST_TAG" ]; then
-            # Get all merged PRs if no previous release
-            echo "No previous tag found, getting all merged PRs..."
-            COMMIT_RANGE="main"
-          else
-            # Get commits since the last tag
-            echo "Getting PRs since tag: ${LATEST_TAG}"
-            COMMIT_RANGE="${LATEST_TAG}..main"
-          fi
-
-          # Get all commit SHAs in the range
-          COMMITS=$(git log $COMMIT_RANGE --format="%H" --merges)
-
-          if [ -z "$COMMITS" ]; then
-            echo "No merge commits found"
-            PR_LIST="No PRs found"
-            PR_SUMMARY="No PRs found since last release"
-          else
-            # Extract PR numbers from merge commits
-            PR_NUMBERS=$(echo "$COMMITS" | while read sha; do
-              git log -1 --format="%s" $sha | grep -oP '(?<=Merge pull request #)\d+' || true
-            done)
-
-            if [ -z "$PR_NUMBERS" ]; then
-              echo "No PR numbers found in merge commits"
-              PR_LIST="No PRs found"
-              PR_SUMMARY="No PRs found since last release"
-            else
-              # Get PR details for each number with merged date
-              PR_DETAILS=""
-              for pr_num in $PR_NUMBERS; do
-                PR_INFO=$(gh pr view $pr_num --json number,title,author,mergedAt --jq '"\(.mergedAt)|\(.number)|\(.title)|\(.author.login)"')
-                if [ -n "$PR_INFO" ]; then
-                  PR_DETAILS="${PR_DETAILS}${PR_INFO}"$'\n'
-                fi
-              done
-
-              # Sort by merged date (descending) and format
-              # Format: - $TITLE @$AUTHOR (#$NUMBER)
-              PR_LIST=$(echo "$PR_DETAILS" | grep -v '^$' | sort -r | cut -d'|' -f2 | sed 's/^/#/' | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
-              PR_SUMMARY=$(echo "$PR_DETAILS" | grep -v '^$' | sort -r | awk -F'|' '{print "- " $3 " @" $4 " (#" $2 ")"}')
-            fi
-          fi
-
-          # Save to output (use delimiter for multiline)
-          echo "pr_list=${PR_LIST}" >> $GITHUB_OUTPUT
-          echo "pr_summary<<EOF" >> $GITHUB_OUTPUT
-          echo "$PR_SUMMARY" >> $GITHUB_OUTPUT
+          # Save release body to output (multiline)
+          echo "release_tag=${RELEASE_TAG}" >> $GITHUB_OUTPUT
+          echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
+          echo "release_body<<EOF" >> $GITHUB_OUTPUT
+          echo "${{ github.event.release.body }}" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-          echo "PRs included: ${PR_LIST}"
-          echo "$PR_SUMMARY"
+          echo "=================================="
+          echo "Release Information"
+          echo "=================================="
+          echo "Tag: ${RELEASE_TAG}"
+          echo "Title: ${RELEASE_NAME}"
+          echo ""
+          echo "Description:"
+          echo "${{ github.event.release.body }}"
+          echo "=================================="
 
       - name: Release build starting
         run: |
           echo "=================================="
           echo "Release Build Starting"
           echo "=================================="
-          echo "Version: ${{ steps.version.outputs.new_tag }}"
+          echo "Release: ${{ steps.release_info.outputs.release_tag }}"
           echo "Status: Building..."
-          echo ""
-          echo "Included PRs:"
-          echo "${{ steps.get_prs.outputs.pr_summary }}"
           echo "=================================="
 
       - name: Create bundle (simulate with sleep)
@@ -128,21 +56,19 @@ jobs:
           sleep 10
           echo "Bundle created successfully!"
 
-      - name: Create tag and publish release
-        id: publish_release
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Create and push tag
         run: |
-          # Create the tag
-          git tag ${{ steps.version.outputs.new_tag }}
-          git push origin ${{ steps.version.outputs.new_tag }}
+          RELEASE_TAG="${{ steps.release_info.outputs.release_tag }}"
 
-          # Publish the existing draft release
-          gh release edit ${{ steps.version.outputs.new_tag }} --draft=false
-
-          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.new_tag }}"
-          echo "release_url=${RELEASE_URL}" >> $GITHUB_OUTPUT
-          echo "Release published: ${RELEASE_URL}"
+          # Create the tag if it doesn't exist
+          if ! git rev-parse $RELEASE_TAG >/dev/null 2>&1; then
+            echo "Creating tag ${RELEASE_TAG}..."
+            git tag $RELEASE_TAG
+            git push origin $RELEASE_TAG
+            echo "Tag created and pushed"
+          else
+            echo "Tag ${RELEASE_TAG} already exists"
+          fi
 
       - name: Release build successful
         if: success()
@@ -150,13 +76,10 @@ jobs:
           echo "=================================="
           echo "✓ Release Build Successful"
           echo "=================================="
-          echo "Version: ${{ steps.version.outputs.new_tag }}"
+          echo "Release: ${{ steps.release_info.outputs.release_tag }}"
           echo "Status: Build Successful"
           echo ""
-          echo "Included PRs:"
-          echo "${{ steps.get_prs.outputs.pr_summary }}"
-          echo ""
-          echo "Release URL: ${{ steps.publish_release.outputs.release_url }}"
+          echo "Release URL: ${{ github.event.release.html_url }}"
           echo "=================================="
 
       - name: Release build failed
@@ -165,11 +88,8 @@ jobs:
           echo "=================================="
           echo "✗ Release Build Failed"
           echo "=================================="
-          echo "Version: ${{ steps.version.outputs.new_tag }}"
+          echo "Release: ${{ steps.release_info.outputs.release_tag }}"
           echo "Status: Build Failed"
-          echo ""
-          echo "Included PRs:"
-          echo "${{ steps.get_prs.outputs.pr_summary }}"
           echo ""
           echo "Workflow Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           echo "=================================="
