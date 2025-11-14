@@ -1,9 +1,0 @@
-name-template: "web-api/$RESOLVED_VERSION"
-tag-template: "web-api/$RESOLVED_VERSION"
-change-template: "- $TITLE (#$NUMBER) @$AUTHOR"
-version-resolver:
-  default: patch
-template: |
-  ## Changes
-
-  $CHANGES

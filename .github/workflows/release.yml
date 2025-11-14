@@ -1,0 +1,281 @@
+name: Create Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Fetch all history for tags
+
+      - name: Get latest tag and increment version
+        id: version
+        run: |
+          # Get the latest tag matching web-api/*
+          LATEST_TAG=$(git tag -l "web-api/*" | sort -V | tail -n 1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            # No existing tags, start with 0.0.1
+            NEW_VERSION="0.0.1"
+            LATEST_TAG=""
+          else
+            # Extract version number and increment patch
+            VERSION=${LATEST_TAG#web-api/}
+            IFS='.' read -r -a VERSION_PARTS <<< "$VERSION"
+            MAJOR="${VERSION_PARTS[0]}"
+            MINOR="${VERSION_PARTS[1]}"
+            PATCH="${VERSION_PARTS[2]}"
+
+            # Increment patch version
+            PATCH=$((PATCH + 1))
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          NEW_TAG="web-api/${NEW_VERSION}"
+
+          echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          echo "new_version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "new_tag=${NEW_TAG}" >> $GITHUB_OUTPUT
+
+          echo "Latest tag: ${LATEST_TAG}"
+          echo "New version: ${NEW_VERSION}"
+          echo "New tag: ${NEW_TAG}"
+
+      - name: Get merged PRs since last release
+        id: get_prs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
+
+          # Get the date of the last tag if it exists
+          if [ -z "$LATEST_TAG" ]; then
+            # Get all merged PRs if no previous release
+            echo "No previous tag found, getting all merged PRs..."
+            PRS=$(gh pr list --state merged --base main --json number,title,mergedAt --limit 1000)
+          else
+            # Get the date of the last tag
+            TAG_DATE=$(git log -1 --format=%aI $LATEST_TAG)
+            echo "Last tag date: ${TAG_DATE}"
+
+            # Get all merged PRs since that date
+            PRS=$(gh pr list --state merged --base main --json number,title,mergedAt --limit 1000 | \
+                  jq --arg tag_date "$TAG_DATE" '[.[] | select(.mergedAt > $tag_date)]')
+          fi
+
+          # Build PR list and summary
+          PR_LIST=$(echo "$PRS" | jq -r '[.[].number] | map("#" + tostring) | join(", ")')
+          PR_SUMMARY=$(echo "$PRS" | jq -r '.[] | "• #" + (.number|tostring) + ": " + .title')
+
+          if [ -z "$PR_LIST" ] || [ "$PR_LIST" = "" ]; then
+            PR_LIST="No PRs found"
+            PR_SUMMARY="No PRs found since last release"
+          fi
+
+          # Save to output (use delimiter for multiline)
+          echo "pr_list=${PR_LIST}" >> $GITHUB_OUTPUT
+          echo "pr_summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "PRs included: ${PR_LIST}"
+          echo "$PR_SUMMARY"
+
+      - name: Send Slack notification - Build starting
+        id: slack_start
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          PAYLOAD=$(cat <<EOF
+          {
+            "text": ":hourglass_flowing_sand: Release ${{ steps.version.outputs.new_tag }} build started",
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": ":hourglass_flowing_sand: Release ${{ steps.version.outputs.new_tag }} - Building"
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Version:*\n${{ steps.version.outputs.new_tag }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Status:*\nBuilding..."
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Included PRs:*\n${{ steps.get_prs.outputs.pr_summary }}"
+                }
+              }
+            ]
+          }
+          EOF
+          )
+
+          RESPONSE=$(curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "$PAYLOAD")
+
+          echo "Slack notification sent"
+
+      - name: Create bundle (simulate with sleep)
+        id: bundle
+        run: |
+          echo "Creating bundle..."
+          sleep 10
+          echo "Bundle created successfully!"
+
+      - name: Create release draft
+        id: create_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Create the tag
+          git tag ${{ steps.version.outputs.new_tag }}
+          git push origin ${{ steps.version.outputs.new_tag }}
+
+          # Create release notes
+          RELEASE_NOTES=$(cat <<EOF
+          ## What's Changed
+
+          ${{ steps.get_prs.outputs.pr_summary }}
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.latest_tag }}...${{ steps.version.outputs.new_tag }}
+          EOF
+          )
+
+          # Create draft release
+          gh release create ${{ steps.version.outputs.new_tag }} \
+            --draft \
+            --title "Release ${{ steps.version.outputs.new_version }}" \
+            --notes "$RELEASE_NOTES"
+
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.new_tag }}"
+          echo "release_url=${RELEASE_URL}" >> $GITHUB_OUTPUT
+          echo "Release draft created: ${RELEASE_URL}"
+
+      - name: Send Slack notification - Success
+        if: success()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          PAYLOAD=$(cat <<EOF
+          {
+            "text": ":white_check_mark: Release ${{ steps.version.outputs.new_tag }} build successful",
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": ":white_check_mark: Release ${{ steps.version.outputs.new_tag }} - Success"
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Version:*\n${{ steps.version.outputs.new_tag }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Status:*\n:white_check_mark: Build Successful"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Included PRs:*\n${{ steps.get_prs.outputs.pr_summary }}"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "<${{ steps.create_release.outputs.release_url }}|View Release Draft>"
+                }
+              }
+            ]
+          }
+          EOF
+          )
+
+          curl -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "$PAYLOAD"
+
+          echo "Success notification sent to Slack"
+
+      - name: Send Slack notification - Failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          PAYLOAD=$(cat <<EOF
+          {
+            "text": ":x: Release ${{ steps.version.outputs.new_tag }} build failed",
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": ":x: Release ${{ steps.version.outputs.new_tag }} - Failed"
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Version:*\n${{ steps.version.outputs.new_tag }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Status:*\n:x: Build Failed"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*Included PRs:*\n${{ steps.get_prs.outputs.pr_summary }}"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow Run>"
+                }
+              }
+            ]
+          }
+          EOF
+          )
+
+          curl -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d "$PAYLOAD"
+
+          echo "Failure notification sent to Slack"
