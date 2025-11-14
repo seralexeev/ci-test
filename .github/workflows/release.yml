@@ -17,6 +17,14 @@ jobs:
         with:
           fetch-depth: 0  # Fetch all history for tags
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build scripts
+        run: bash .github/scripts/build.sh
+
       - name: Get release info
         id: release_info
         run: |
@@ -57,7 +65,7 @@ jobs:
           echo "Bundle created successfully!"
 
       - name: Create and push tag
-        run: bash .github/scripts/create-and-push-tag.sh "${{ steps.release_info.outputs.release_tag }}"
+        run: node .github/scripts/dist/create-and-push-tag.js "${{ steps.release_info.outputs.release_tag }}"
 
       - name: Release build successful
         if: success()

@@ -24,15 +24,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Get latest tag and next version
-        id: version
-        run: bash .github/scripts/get-next-version.sh
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: "package.json"
 
       - name: Create or update release draft
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          bash .github/scripts/update-draft-release.sh \
-            "${{ steps.version.outputs.next_tag }}" \
-            "${{ steps.version.outputs.next_version }}" \
-            "${{ steps.version.outputs.latest_tag }}"
+        run: ./scripts/src/ci_update_draft_release.ts web-api
