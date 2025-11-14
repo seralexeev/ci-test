@@ -5,6 +5,9 @@ on:
     types: [closed]
     branches:
       - main
+  # in case of race conditions or manual updates
+  # we can manually trigger this workflow to update the draft release
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,108 +15,24 @@ permissions:
 
 jobs:
   update-draft:
-    # Only run if the PR was actually merged (not just closed)
-    if: github.event.pull_request.merged == true
+    # only run if the PR was actually merged (not just closed) or manually triggered
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0  # Fetch all history for tags
+          fetch-depth: 0
 
       - name: Get latest tag and next version
         id: version
-        run: |
-          # Get the latest tag matching web-api/*
-          LATEST_TAG=$(git tag -l "web-api/*" | sort -V | tail -n 1)
-
-          if [ -z "$LATEST_TAG" ]; then
-            # No existing tags, start with 0.0.1
-            NEXT_VERSION="0.0.1"
-            LATEST_TAG=""
-          else
-            # Extract version number and increment patch
-            VERSION=${LATEST_TAG#web-api/}
-            IFS='.' read -r -a VERSION_PARTS <<< "$VERSION"
-            MAJOR="${VERSION_PARTS[0]}"
-            MINOR="${VERSION_PARTS[1]}"
-            PATCH="${VERSION_PARTS[2]}"
-
-            # Increment patch version
-            PATCH=$((PATCH + 1))
-            NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
-          fi
-
-          NEXT_TAG="web-api/${NEXT_VERSION}"
-
-          echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
-          echo "next_version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
-          echo "next_tag=${NEXT_TAG}" >> $GITHUB_OUTPUT
-
-          echo "Latest tag: ${LATEST_TAG}"
-          echo "Next version: ${NEXT_VERSION}"
-          echo "Next tag: ${NEXT_TAG}"
+        run: bash .github/scripts/get-next-version.sh
 
       - name: Create or update release draft
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          NEXT_TAG="${{ steps.version.outputs.next_tag }}"
-          NEXT_VERSION="${{ steps.version.outputs.next_version }}"
-          LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
-
-          # Check if draft release already exists (check if tag exists in releases)
-          EXISTING_DRAFT=$(gh release view ${NEXT_TAG} --json isDraft --jq '.isDraft' 2>/dev/null || echo "false")
-
-          if [ "$EXISTING_DRAFT" = "true" ]; then
-            echo "Updating existing draft release for ${NEXT_TAG}..."
-
-            # Generate notes and update the draft
-            if [ -z "$LATEST_TAG" ]; then
-              # No previous tag, generate notes from the beginning
-              gh release edit ${NEXT_TAG} \
-                --draft \
-                --title "Release ${NEXT_VERSION}" \
-                --generate-notes
-            else
-              # Generate notes since the last tag
-              gh release edit ${NEXT_TAG} \
-                --draft \
-                --title "Release ${NEXT_VERSION}" \
-                --notes-start-tag "${LATEST_TAG}" \
-                --generate-notes
-            fi
-            echo "Draft release updated with auto-generated notes"
-          else
-            echo "Creating new draft release for ${NEXT_TAG}..."
-            # Delete the tag if it exists (in case there's a non-draft release)
-            gh release delete ${NEXT_TAG} --yes 2>/dev/null || true
-            git tag -d ${NEXT_TAG} 2>/dev/null || true
-            git push origin :refs/tags/${NEXT_TAG} 2>/dev/null || true
-
-            # Create draft with auto-generated notes
-            if [ -z "$LATEST_TAG" ]; then
-              gh release create ${NEXT_TAG} \
-                --draft \
-                --title "Release ${NEXT_VERSION}" \
-                --generate-notes \
-                --target main
-            else
-              gh release create ${NEXT_TAG} \
-                --draft \
-                --title "Release ${NEXT_VERSION}" \
-                --notes-start-tag "${LATEST_TAG}" \
-                --generate-notes \
-                --target main
-            fi
-            echo "Draft release created with auto-generated notes"
-          fi
-
-          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${NEXT_TAG}"
-
-          echo "=================================="
-          echo "✓ Release Draft Updated"
-          echo "=================================="
-          echo "Next Version: ${NEXT_TAG}"
-          echo "Release URL: ${RELEASE_URL}"
-          echo "=================================="
+          bash .github/scripts/update-draft-release.sh \
+            "${{ steps.version.outputs.next_tag }}" \
+            "${{ steps.version.outputs.next_version }}" \
+            "${{ steps.version.outputs.latest_tag }}"

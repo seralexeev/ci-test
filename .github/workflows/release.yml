@@ -57,18 +57,7 @@ jobs:
           echo "Bundle created successfully!"
 
       - name: Create and push tag
-        run: |
-          RELEASE_TAG="${{ steps.release_info.outputs.release_tag }}"
-
-          # Create the tag if it doesn't exist
-          if ! git rev-parse $RELEASE_TAG >/dev/null 2>&1; then
-            echo "Creating tag ${RELEASE_TAG}..."
-            git tag $RELEASE_TAG
-            git push origin $RELEASE_TAG
-            echo "Tag created and pushed"
-          else
-            echo "Tag ${RELEASE_TAG} already exists"
-          fi
+        run: bash .github/scripts/create-and-push-tag.sh "${{ steps.release_info.outputs.release_tag }}"
 
       - name: Release build successful
         if: success()
