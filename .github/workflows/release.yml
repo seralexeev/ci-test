@@ -74,26 +74,29 @@ jobs:
             PR_LIST="No PRs found"
             PR_SUMMARY="No PRs found since last release"
           else
-            # Extract PR numbers from merge commits and get PR details
+            # Extract PR numbers from merge commits
             PR_NUMBERS=$(echo "$COMMITS" | while read sha; do
               git log -1 --format="%s" $sha | grep -oP '(?<=Merge pull request #)\d+' || true
-            done | sort -u)
+            done)
 
             if [ -z "$PR_NUMBERS" ]; then
               echo "No PR numbers found in merge commits"
               PR_LIST="No PRs found"
               PR_SUMMARY="No PRs found since last release"
             else
-              # Get PR details for each number
+              # Get PR details for each number with merged date
               PR_DETAILS=""
               for pr_num in $PR_NUMBERS; do
-                PR_INFO=$(gh pr view $pr_num --json number,title --jq '"\(.number)|\(.title)"')
-                PR_DETAILS="${PR_DETAILS}${PR_INFO}"$'\n'
+                PR_INFO=$(gh pr view $pr_num --json number,title,author,mergedAt --jq '"\(.mergedAt)|\(.number)|\(.title)|\(.author.login)"')
+                if [ -n "$PR_INFO" ]; then
+                  PR_DETAILS="${PR_DETAILS}${PR_INFO}"$'\n'
+                fi
               done
 
-              # Build PR list and summary
-              PR_LIST=$(echo "$PR_DETAILS" | grep -v '^$' | cut -d'|' -f1 | sed 's/^/#/' | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
-              PR_SUMMARY=$(echo "$PR_DETAILS" | grep -v '^$' | awk -F'|' '{print "• #" $1 ": " $2}')
+              # Sort by merged date (descending) and format
+              # Format: - $TITLE @$AUTHOR (#$NUMBER)
+              PR_LIST=$(echo "$PR_DETAILS" | grep -v '^$' | sort -r | cut -d'|' -f2 | sed 's/^/#/' | tr '\n' ',' | sed 's/,$//' | sed 's/,/, /g')
+              PR_SUMMARY=$(echo "$PR_DETAILS" | grep -v '^$' | sort -r | awk -F'|' '{print "- " $3 " @" $4 " (#" $2 ")"}')
             fi
           fi
 
