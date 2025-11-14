@@ -1,0 +1,145 @@
+name: Update Release Draft
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  update-draft:
+    # Only run if the PR was actually merged (not just closed)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # Fetch all history for tags
+
+      - name: Get latest tag and next version
+        id: version
+        run: |
+          # Get the latest tag matching web-api/*
+          LATEST_TAG=$(git tag -l "web-api/*" | sort -V | tail -n 1)
+
+          if [ -z "$LATEST_TAG" ]; then
+            # No existing tags, start with 0.0.1
+            NEXT_VERSION="0.0.1"
+            LATEST_TAG=""
+          else
+            # Extract version number and increment patch
+            VERSION=${LATEST_TAG#web-api/}
+            IFS='.' read -r -a VERSION_PARTS <<< "$VERSION"
+            MAJOR="${VERSION_PARTS[0]}"
+            MINOR="${VERSION_PARTS[1]}"
+            PATCH="${VERSION_PARTS[2]}"
+
+            # Increment patch version
+            PATCH=$((PATCH + 1))
+            NEXT_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          NEXT_TAG="web-api/${NEXT_VERSION}"
+
+          echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+          echo "next_version=${NEXT_VERSION}" >> $GITHUB_OUTPUT
+          echo "next_tag=${NEXT_TAG}" >> $GITHUB_OUTPUT
+
+          echo "Latest tag: ${LATEST_TAG}"
+          echo "Next version: ${NEXT_VERSION}"
+          echo "Next tag: ${NEXT_TAG}"
+
+      - name: Get merged PRs since last release
+        id: get_prs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
+
+          # Get the date of the last tag if it exists
+          if [ -z "$LATEST_TAG" ]; then
+            # Get all merged PRs if no previous release
+            echo "No previous tag found, getting all merged PRs..."
+            PRS=$(gh pr list --state merged --base main --json number,title,mergedAt --limit 1000)
+          else
+            # Get the date of the last tag
+            TAG_DATE=$(git log -1 --format=%aI $LATEST_TAG)
+            echo "Last tag date: ${TAG_DATE}"
+
+            # Get all merged PRs since that date
+            PRS=$(gh pr list --state merged --base main --json number,title,mergedAt --limit 1000 | \
+                  jq --arg tag_date "$TAG_DATE" '[.[] | select(.mergedAt > $tag_date)]')
+          fi
+
+          # Build PR summary
+          PR_SUMMARY=$(echo "$PRS" | jq -r '.[] | "• #" + (.number|tostring) + ": " + .title')
+
+          if [ -z "$PR_SUMMARY" ] || [ "$PR_SUMMARY" = "" ]; then
+            PR_SUMMARY="No PRs found since last release"
+          fi
+
+          # Save to output (use delimiter for multiline)
+          echo "pr_summary<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_SUMMARY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "PRs included:"
+          echo "$PR_SUMMARY"
+
+      - name: Create or update release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NEXT_TAG="${{ steps.version.outputs.next_tag }}"
+          NEXT_VERSION="${{ steps.version.outputs.next_version }}"
+          LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
+
+          # Create release notes
+          if [ -z "$LATEST_TAG" ]; then
+            CHANGELOG_LINK="https://github.com/${{ github.repository }}/commits/main"
+          else
+            CHANGELOG_LINK="https://github.com/${{ github.repository }}/compare/${LATEST_TAG}...main"
+          fi
+
+          RELEASE_NOTES=$(cat <<EOF
+          ## What's Changed
+
+          ${{ steps.get_prs.outputs.pr_summary }}
+
+          **Full Changelog**: ${CHANGELOG_LINK}
+          EOF
+          )
+
+          # Check if draft release already exists
+          EXISTING_DRAFT=$(gh release list --limit 100 | grep -E "^${NEXT_TAG}\s.*Draft" || true)
+
+          if [ -n "$EXISTING_DRAFT" ]; then
+            echo "Updating existing draft release for ${NEXT_TAG}..."
+            gh release edit ${NEXT_TAG} \
+              --draft \
+              --title "Release ${NEXT_VERSION}" \
+              --notes "$RELEASE_NOTES"
+            echo "Draft release updated"
+          else
+            echo "Creating new draft release for ${NEXT_TAG}..."
+            gh release create ${NEXT_TAG} \
+              --draft \
+              --title "Release ${NEXT_VERSION}" \
+              --notes "$RELEASE_NOTES" \
+              --target main
+            echo "Draft release created"
+          fi
+
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${NEXT_TAG}"
+
+          echo "=================================="
+          echo "✓ Release Draft Updated"
+          echo "=================================="
+          echo "Next Version: ${NEXT_TAG}"
+          echo "Release URL: ${RELEASE_URL}"
+          echo "=================================="

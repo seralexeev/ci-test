@@ -89,52 +89,17 @@ jobs:
           echo "PRs included: ${PR_LIST}"
           echo "$PR_SUMMARY"
 
-      - name: Send Slack notification - Build starting
-        id: slack_start
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Release build starting
         run: |
-          PAYLOAD=$(cat <<EOF
-          {
-            "text": ":hourglass_flowing_sand: Release ${{ steps.version.outputs.new_tag }} build started",
-            "blocks": [
-              {
-                "type": "header",
-                "text": {
-                  "type": "plain_text",
-                  "text": ":hourglass_flowing_sand: Release ${{ steps.version.outputs.new_tag }} - Building"
-                }
-              },
-              {
-                "type": "section",
-                "fields": [
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Version:*\n${{ steps.version.outputs.new_tag }}"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Status:*\nBuilding..."
-                  }
-                ]
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Included PRs:*\n${{ steps.get_prs.outputs.pr_summary }}"
-                }
-              }
-            ]
-          }
-          EOF
-          )
-
-          RESPONSE=$(curl -s -X POST "$SLACK_WEBHOOK_URL" \
-            -H 'Content-Type: application/json' \
-            -d "$PAYLOAD")
-
-          echo "Slack notification sent"
+          echo "=================================="
+          echo "Release Build Starting"
+          echo "=================================="
+          echo "Version: ${{ steps.version.outputs.new_tag }}"
+          echo "Status: Building..."
+          echo ""
+          echo "Included PRs:"
+          echo "${{ steps.get_prs.outputs.pr_summary }}"
+          echo "=================================="
 
       - name: Create bundle (simulate with sleep)
         id: bundle
@@ -143,8 +108,8 @@ jobs:
           sleep 10
           echo "Bundle created successfully!"
 
-      - name: Create release draft
-        id: create_release
+      - name: Create tag and publish release
+        id: publish_release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -152,130 +117,39 @@ jobs:
           git tag ${{ steps.version.outputs.new_tag }}
           git push origin ${{ steps.version.outputs.new_tag }}
 
-          # Create release notes
-          RELEASE_NOTES=$(cat <<EOF
-          ## What's Changed
-
-          ${{ steps.get_prs.outputs.pr_summary }}
-
-          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.version.outputs.latest_tag }}...${{ steps.version.outputs.new_tag }}
-          EOF
-          )
-
-          # Create draft release
-          gh release create ${{ steps.version.outputs.new_tag }} \
-            --draft \
-            --title "Release ${{ steps.version.outputs.new_version }}" \
-            --notes "$RELEASE_NOTES"
+          # Publish the existing draft release
+          gh release edit ${{ steps.version.outputs.new_tag }} --draft=false
 
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.new_tag }}"
           echo "release_url=${RELEASE_URL}" >> $GITHUB_OUTPUT
-          echo "Release draft created: ${RELEASE_URL}"
+          echo "Release published: ${RELEASE_URL}"
 
-      - name: Send Slack notification - Success
+      - name: Release build successful
         if: success()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          PAYLOAD=$(cat <<EOF
-          {
-            "text": ":white_check_mark: Release ${{ steps.version.outputs.new_tag }} build successful",
-            "blocks": [
-              {
-                "type": "header",
-                "text": {
-                  "type": "plain_text",
-                  "text": ":white_check_mark: Release ${{ steps.version.outputs.new_tag }} - Success"
-                }
-              },
-              {
-                "type": "section",
-                "fields": [
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Version:*\n${{ steps.version.outputs.new_tag }}"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Status:*\n:white_check_mark: Build Successful"
-                  }
-                ]
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Included PRs:*\n${{ steps.get_prs.outputs.pr_summary }}"
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "<${{ steps.create_release.outputs.release_url }}|View Release Draft>"
-                }
-              }
-            ]
-          }
-          EOF
-          )
+          echo "=================================="
+          echo "✓ Release Build Successful"
+          echo "=================================="
+          echo "Version: ${{ steps.version.outputs.new_tag }}"
+          echo "Status: Build Successful"
+          echo ""
+          echo "Included PRs:"
+          echo "${{ steps.get_prs.outputs.pr_summary }}"
+          echo ""
+          echo "Release URL: ${{ steps.publish_release.outputs.release_url }}"
+          echo "=================================="
 
-          curl -X POST "$SLACK_WEBHOOK_URL" \
-            -H 'Content-Type: application/json' \
-            -d "$PAYLOAD"
-
-          echo "Success notification sent to Slack"
-
-      - name: Send Slack notification - Failure
+      - name: Release build failed
         if: failure()
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          PAYLOAD=$(cat <<EOF
-          {
-            "text": ":x: Release ${{ steps.version.outputs.new_tag }} build failed",
-            "blocks": [
-              {
-                "type": "header",
-                "text": {
-                  "type": "plain_text",
-                  "text": ":x: Release ${{ steps.version.outputs.new_tag }} - Failed"
-                }
-              },
-              {
-                "type": "section",
-                "fields": [
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Version:*\n${{ steps.version.outputs.new_tag }}"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Status:*\n:x: Build Failed"
-                  }
-                ]
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*Included PRs:*\n${{ steps.get_prs.outputs.pr_summary }}"
-                }
-              },
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "<https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Workflow Run>"
-                }
-              }
-            ]
-          }
-          EOF
-          )
-
-          curl -X POST "$SLACK_WEBHOOK_URL" \
-            -H 'Content-Type: application/json' \
-            -d "$PAYLOAD"
-
-          echo "Failure notification sent to Slack"
+          echo "=================================="
+          echo "✗ Release Build Failed"
+          echo "=================================="
+          echo "Version: ${{ steps.version.outputs.new_tag }}"
+          echo "Status: Build Failed"
+          echo ""
+          echo "Included PRs:"
+          echo "${{ steps.get_prs.outputs.pr_summary }}"
+          echo ""
+          echo "Workflow Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "=================================="
