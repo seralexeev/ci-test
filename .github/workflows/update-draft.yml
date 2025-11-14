@@ -131,10 +131,10 @@ jobs:
           EOF
           )
 
-          # Check if draft release already exists
-          EXISTING_DRAFT=$(gh release list --limit 100 | grep -E "^${NEXT_TAG}\s.*Draft" || true)
+          # Check if draft release already exists (check if tag exists in releases)
+          EXISTING_DRAFT=$(gh release view ${NEXT_TAG} --json isDraft --jq '.isDraft' 2>/dev/null || echo "false")
 
-          if [ -n "$EXISTING_DRAFT" ]; then
+          if [ "$EXISTING_DRAFT" = "true" ]; then
             echo "Updating existing draft release for ${NEXT_TAG}..."
             gh release edit ${NEXT_TAG} \
               --draft \
@@ -143,6 +143,11 @@ jobs:
             echo "Draft release updated"
           else
             echo "Creating new draft release for ${NEXT_TAG}..."
+            # Delete the tag if it exists (in case there's a non-draft release)
+            gh release delete ${NEXT_TAG} --yes 2>/dev/null || true
+            git tag -d ${NEXT_TAG} 2>/dev/null || true
+            git push origin :refs/tags/${NEXT_TAG} 2>/dev/null || true
+
             gh release create ${NEXT_TAG} \
               --draft \
               --title "Release ${NEXT_VERSION}" \
