@@ -54,62 +54,6 @@ jobs:
           echo "Next version: ${NEXT_VERSION}"
           echo "Next tag: ${NEXT_TAG}"
 
-      - name: Get merged PRs since last release
-        id: get_prs
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
-
-          if [ -z "$LATEST_TAG" ]; then
-            # Get all merged PRs if no previous release
-            echo "No previous tag found, getting all merged PRs..."
-            COMMIT_RANGE="main"
-          else
-            # Get commits since the last tag
-            echo "Getting PRs since tag: ${LATEST_TAG}"
-            COMMIT_RANGE="${LATEST_TAG}..main"
-          fi
-
-          # Get all commit SHAs in the range
-          COMMITS=$(git log $COMMIT_RANGE --format="%H" --merges)
-
-          if [ -z "$COMMITS" ]; then
-            echo "No merge commits found"
-            PR_SUMMARY="No PRs found since last release"
-          else
-            # Extract PR numbers from merge commits
-            PR_NUMBERS=$(echo "$COMMITS" | while read sha; do
-              git log -1 --format="%s" $sha | grep -oP '(?<=Merge pull request #)\d+' || true
-            done)
-
-            if [ -z "$PR_NUMBERS" ]; then
-              echo "No PR numbers found in merge commits"
-              PR_SUMMARY="No PRs found since last release"
-            else
-              # Get PR details for each number with merged date
-              PR_DETAILS=""
-              for pr_num in $PR_NUMBERS; do
-                PR_INFO=$(gh pr view $pr_num --json number,title,author,mergedAt --jq '"\(.mergedAt)|\(.number)|\(.title)|\(.author.login)"')
-                if [ -n "$PR_INFO" ]; then
-                  PR_DETAILS="${PR_DETAILS}${PR_INFO}"$'\n'
-                fi
-              done
-
-              # Sort by merged date (descending) and format
-              # Format: - $TITLE @$AUTHOR (#$NUMBER)
-              PR_SUMMARY=$(echo "$PR_DETAILS" | grep -v '^$' | sort -r | awk -F'|' '{print "- " $3 " @" $4 " (#" $2 ")"}')
-            fi
-          fi
-
-          # Save to output (use delimiter for multiline)
-          echo "pr_summary<<EOF" >> $GITHUB_OUTPUT
-          echo "$PR_SUMMARY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-          echo "PRs included:"
-          echo "$PR_SUMMARY"
-
       - name: Create or update release draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -118,32 +62,28 @@ jobs:
           NEXT_VERSION="${{ steps.version.outputs.next_version }}"
           LATEST_TAG="${{ steps.version.outputs.latest_tag }}"
 
-          # Create release notes
-          if [ -z "$LATEST_TAG" ]; then
-            CHANGELOG_LINK="https://github.com/${{ github.repository }}/commits/main"
-          else
-            CHANGELOG_LINK="https://github.com/${{ github.repository }}/compare/${LATEST_TAG}...main"
-          fi
-
-          RELEASE_NOTES=$(cat <<EOF
-          ## What's Changed
-
-          ${{ steps.get_prs.outputs.pr_summary }}
-
-          **Full Changelog**: ${CHANGELOG_LINK}
-          EOF
-          )
-
           # Check if draft release already exists (check if tag exists in releases)
           EXISTING_DRAFT=$(gh release view ${NEXT_TAG} --json isDraft --jq '.isDraft' 2>/dev/null || echo "false")
 
           if [ "$EXISTING_DRAFT" = "true" ]; then
             echo "Updating existing draft release for ${NEXT_TAG}..."
-            gh release edit ${NEXT_TAG} \
-              --draft \
-              --title "Release ${NEXT_VERSION}" \
-              --notes "$RELEASE_NOTES"
-            echo "Draft release updated"
+
+            # Generate notes and update the draft
+            if [ -z "$LATEST_TAG" ]; then
+              # No previous tag, generate notes from the beginning
+              gh release edit ${NEXT_TAG} \
+                --draft \
+                --title "Release ${NEXT_VERSION}" \
+                --generate-notes
+            else
+              # Generate notes since the last tag
+              gh release edit ${NEXT_TAG} \
+                --draft \
+                --title "Release ${NEXT_VERSION}" \
+                --notes-start-tag "${LATEST_TAG}" \
+                --generate-notes
+            fi
+            echo "Draft release updated with auto-generated notes"
           else
             echo "Creating new draft release for ${NEXT_TAG}..."
             # Delete the tag if it exists (in case there's a non-draft release)
@@ -151,12 +91,22 @@ jobs:
             git tag -d ${NEXT_TAG} 2>/dev/null || true
             git push origin :refs/tags/${NEXT_TAG} 2>/dev/null || true
 
-            gh release create ${NEXT_TAG} \
-              --draft \
-              --title "Release ${NEXT_VERSION}" \
-              --notes "$RELEASE_NOTES" \
-              --target main
-            echo "Draft release created"
+            # Create draft with auto-generated notes
+            if [ -z "$LATEST_TAG" ]; then
+              gh release create ${NEXT_TAG} \
+                --draft \
+                --title "Release ${NEXT_VERSION}" \
+                --generate-notes \
+                --target main
+            else
+              gh release create ${NEXT_TAG} \
+                --draft \
+                --title "Release ${NEXT_VERSION}" \
+                --notes-start-tag "${LATEST_TAG}" \
+                --generate-notes \
+                --target main
+            fi
+            echo "Draft release created with auto-generated notes"
           fi
 
           RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${NEXT_TAG}"
