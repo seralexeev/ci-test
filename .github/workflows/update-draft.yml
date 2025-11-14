@@ -34,3 +34,5 @@ jobs:
 
       - name: Create or update release draft
         run: ./scripts/src/ci_update_draft_release.ts web-api
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
