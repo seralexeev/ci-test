@@ -38,11 +38,13 @@ console.log(`Parsed version: ${version}`);
 const [major, minor, patch] = z
   .tuple([z.coerce.number(), z.coerce.number(), z.coerce.number()])
   .parse(version.split("."));
-console.log(`Version components - major: ${major}, minor: ${minor}, patch: ${patch}`);
+console.log(
+  `Version components - major: ${major}, minor: ${minor}, patch: ${patch}`
+);
 
 // currently we only bump the patch version only
 const nextVersion = `${major}.${minor}.${patch + 1}`;
-const nextTag = `${prefix}${nextVersion}`;
+const nextTag = `${prefix}/${nextVersion}`;
 console.log(`Next version calculated: ${nextVersion}`);
 console.log(`Next tag: ${nextTag}`);
 
@@ -102,8 +104,8 @@ if (draft == null) {
 
 const releaseUrl = `https://github.com/${owner}/${repo}/releases/tag/${nextTag}`;
 
-console.log(`\n${'='.repeat(50)}`);
+console.log(`\n${"=".repeat(50)}`);
 console.log("Release Draft Updated");
 console.log(`Next Version: ${nextTag}`);
 console.log(`Release URL: ${releaseUrl}`);
-console.log(`${'='.repeat(50)}`);
+console.log(`${"=".repeat(50)}`);
