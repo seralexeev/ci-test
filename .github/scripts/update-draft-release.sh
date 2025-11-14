@@ -10,51 +10,28 @@ if [ -z "$NEXT_TAG" ] || [ -z "$NEXT_VERSION" ]; then
   exit 1
 fi
 
-# Check if draft release already exists
-EXISTING_DRAFT=$(gh release view ${NEXT_TAG} --json isDraft --jq '.isDraft' 2>/dev/null || echo "false")
+# Delete existing draft release and tag if they exist
+echo "Checking for existing draft release for ${NEXT_TAG}..."
+gh release delete ${NEXT_TAG} --yes 2>/dev/null || true
+git tag -d ${NEXT_TAG} 2>/dev/null || true
+git push origin :refs/tags/${NEXT_TAG} 2>/dev/null || true
 
-if [ "$EXISTING_DRAFT" = "true" ]; then
-  echo "Updating existing draft release for ${NEXT_TAG}..."
+# Create new draft with auto-generated notes
+echo "Creating draft release for ${NEXT_TAG}..."
 
-  # Generate notes and update the draft
-  if [ -z "$LATEST_TAG" ]; then
-    # No previous tag, generate notes from the beginning
-    gh release edit ${NEXT_TAG} \
-      --draft \
-      --title "Release ${NEXT_VERSION}" \
-      --generate-notes
-  else
-    # Generate notes since the last tag
-    gh release edit ${NEXT_TAG} \
-      --draft \
-      --title "Release ${NEXT_VERSION}" \
-      --notes-start-tag "${LATEST_TAG}" \
-      --generate-notes
-  fi
-  echo "Draft release updated with auto-generated notes"
+if [ -z "$LATEST_TAG" ]; then
+  gh release create ${NEXT_TAG} \
+    --draft \
+    --title "Release ${NEXT_VERSION}" \
+    --generate-notes \
+    --target main
 else
-  echo "Creating new draft release for ${NEXT_TAG}..."
-  # Delete the tag if it exists (in case there's a non-draft release)
-  gh release delete ${NEXT_TAG} --yes 2>/dev/null || true
-  git tag -d ${NEXT_TAG} 2>/dev/null || true
-  git push origin :refs/tags/${NEXT_TAG} 2>/dev/null || true
-
-  # Create draft with auto-generated notes
-  if [ -z "$LATEST_TAG" ]; then
-    gh release create ${NEXT_TAG} \
-      --draft \
-      --title "Release ${NEXT_VERSION}" \
-      --generate-notes \
-      --target main
-  else
-    gh release create ${NEXT_TAG} \
-      --draft \
-      --title "Release ${NEXT_VERSION}" \
-      --notes-start-tag "${LATEST_TAG}" \
-      --generate-notes \
-      --target main
-  fi
-  echo "Draft release created with auto-generated notes"
+  gh release create ${NEXT_TAG} \
+    --draft \
+    --title "Release ${NEXT_VERSION}" \
+    --notes-start-tag "${LATEST_TAG}" \
+    --generate-notes \
+    --target main
 fi
 
 RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${NEXT_TAG}"
