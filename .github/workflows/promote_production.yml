@@ -1,0 +1,99 @@
+name: Promote to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "SHA to deploy (leave empty to use web-api/staging)"
+        required: false
+        type: string
+
+concurrency:
+  group: web-api-production
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  promote-production:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Determine target SHA
+        id: target
+        run: |
+          if [ -n "${{ inputs.sha }}" ]; then
+            TARGET_SHA="${{ inputs.sha }}"
+          else
+            TARGET_SHA=$(git rev-parse web-api/staging)
+          fi
+          echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+          echo "short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
+
+          # Get current production SHA (if exists)
+          PROD_SHA=$(git rev-parse web-api/production 2>/dev/null || echo "")
+          echo "prod_sha=$PROD_SHA" >> $GITHUB_OUTPUT
+          echo "prod_short=$(git rev-parse --short $PROD_SHA 2>/dev/null || echo 'none')" >> $GITHUB_OUTPUT
+
+      - name: Notify deployment start
+        run: |
+          echo "Deploying web-api to PRODUCTION @ ${{ steps.target.outputs.short }} (prev @ ${{ steps.target.outputs.prod_short }})"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web-api/Dockerfile
+          push: false
+          tags: |
+            web-api:${{ steps.target.outputs.short }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.target.outputs.sha }}
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
+
+      - name: Deploy to production
+        id: deploy
+        run: |
+          echo "Deploying to production environment..."
+          echo "Deploying web-api:${{ steps.target.outputs.short }}"
+          # Placeholder for actual deployment:
+          # - kubectl apply / helm upgrade / docker-compose up
+          # - Health checks
+          # - Smoke tests
+          echo "Deployment successful"
+        continue-on-error: true
+
+      # Step B4-B6: Handle promotion (rollback/rollforward/no-op)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install dependencies
+        if: steps.deploy.outcome == 'success'
+        run: |
+          corepack enable
+          pnpm install --filter "scripts..." --frozen-lockfile
+
+      - name: Promote to production
+        if: steps.deploy.outcome == 'success'
+        run: node scripts/src/ci_promote_production.ts web-api ${{ steps.target.outputs.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify deployment failure
+        if: steps.deploy.outcome == 'failure'
+        run: |
+          echo "Failed to deploy web-api to PRODUCTION @ ${{ steps.target.outputs.short }}"
+          echo "No tags or releases were updated"
+          exit 1

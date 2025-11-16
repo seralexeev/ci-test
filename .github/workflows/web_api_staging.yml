@@ -1,0 +1,112 @@
+name: Deploy web-api to Staging
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "SHA to deploy (leave empty to use current HEAD of main)"
+        required: false
+        type: string
+
+concurrency:
+  group: web-api-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  deploy-staging:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Determine target SHA
+        id: target
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.sha }}" ]; then
+            TARGET_SHA="${{ inputs.sha }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET_SHA=$(git rev-parse origin/main)
+          else
+            TARGET_SHA="${{ github.sha }}"
+          fi
+          echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+          echo "short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
+
+      - name: Notify deployment start
+        run: |
+          echo "Deploying web-api to STAGING @ ${{ steps.target.outputs.short }}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web-api/Dockerfile
+          push: false
+          tags: |
+            web-api:${{ steps.target.outputs.short }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.target.outputs.sha }}
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
+
+      - name: Deploy to staging
+        id: deploy
+        run: |
+          echo "Deploying to staging environment..."
+          echo "Deploying web-api:${{ steps.target.outputs.short }}"
+          # Placeholder for actual deployment:
+          # - kubectl apply / helm upgrade / docker-compose up
+          # - Health checks
+          # - Smoke tests
+          echo "Deployment successful"
+        continue-on-error: true
+
+      - name: Update floating staging tag
+        if: steps.deploy.outcome == 'success'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f web-api/staging ${{ steps.target.outputs.sha }}
+          git push -f origin web-api/staging
+
+      - name: Setup Node.js
+        if: steps.deploy.outcome == 'success'
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: "package.json"
+
+      - name: Install dependencies
+        if: steps.deploy.outcome == 'success'
+        run: |
+          corepack enable
+          pnpm install --filter "scripts..." --frozen-lockfile
+
+      - name: Update draft release
+        if: steps.deploy.outcome == 'success'
+        run: node scripts/src/ci_update_release_draft.ts web-api ${{ steps.target.outputs.sha }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify deployment success
+        if: steps.deploy.outcome == 'success'
+        run: |
+          echo "Deployed web-api to STAGING @ ${{ steps.target.outputs.short }}"
+
+      - name: Notify deployment failure
+        if: steps.deploy.outcome == 'failure'
+        run: |
+          echo "Failed to deploy web-api to STAGING @ ${{ steps.target.outputs.short }}"
+          echo "No tags or draft release notes were updated"
+          exit 1
