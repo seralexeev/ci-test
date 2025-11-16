@@ -74,7 +74,7 @@ jobs:
         if: steps.deploy.outcome == 'success'
         uses: actions/setup-node@v6
         with:
-          node-version-file: "package.json"
+          node-version: "24"
 
       - name: Install dependencies
         if: steps.deploy.outcome == 'success'
