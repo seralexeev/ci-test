@@ -21,18 +21,7 @@ const [owner, repo] = z
   .tuple([z.string().min(1), z.string().min(1)])
   .parse(env.GITHUB_REPOSITORY.split("/"));
 
-const targetSha = await $`git rev-parse ${prefix}/staging`
-  .then((x) => x.stdout.trim())
-  .then(z.string().min(1).parse);
-
 const productionTag = `${prefix}/production`;
-const productionSha = await $`git rev-parse ${productionTag}`
-  .then((x) => x.stdout.trim())
-  .then(z.string().min(1).parse);
-
-console.log(
-  `Production tag found: ${productionTag} @ ${targetSha.substring(0, 7)}`
-);
 
 // trying to get the latest tag with the given prefix
 // to determine the next version and the changelog
@@ -53,21 +42,14 @@ const [major, minor, patch] = z
 const nextVersion = `${major}.${minor}.${patch + 1}`;
 const nextTag = `${prefix}/release/${nextVersion}`;
 
-// Generate release notes from production -> target SHA
-// This shows what will be in the next production release
+// generate release notes from ${prefix}/production -> target SHA (which is always staging here)
 const { data: releaseNotes } = await octokit.repos.generateReleaseNotes({
   owner,
   repo,
   tag_name: nextTag,
   target_commitish: `${prefix}/staging`,
-  previous_tag_name: productionTag,
+  previous_tag_name: `${prefix}/production`,
 });
-
-console.log(
-  `Generating release notes: ${
-    productionTag || "(initial)"
-  } → ${targetSha.substring(0, 7)}`
-);
 
 console.log(`Release title: ${releaseNotes.name}`);
 console.log(releaseNotes.body);
@@ -80,34 +62,26 @@ const draft =
   releases.find((release) => release.tag_name === nextTag && release.draft) ??
   null;
 
-if (draft == null) {
-  await octokit.repos.createRelease({
-    owner,
-    repo,
-    tag_name: nextTag,
-    name: nextTag,
-    body: releaseNotes.body,
-    draft: true,
-    target_commitish: targetSha,
-  });
-  console.log(`✅ Created draft release ${nextTag}`);
-} else {
-  if (draft.draft === false) {
-    throw new Error("The tag already has a published release.");
-  }
+const release =
+  draft == null
+    ? await octokit.repos.createRelease({
+        owner,
+        repo,
+        tag_name: nextTag,
+        name: nextTag,
+        body: releaseNotes.body,
+        draft: true,
+        target_commitish: `${prefix}/staging`,
+      })
+    : await octokit.repos.updateRelease({
+        owner,
+        repo,
+        release_id: draft.id,
+        tag_name: nextTag,
+        draft: true,
+        name: nextTag,
+        body: releaseNotes.body,
+        target_commitish: `${prefix}/staging`,
+      });
 
-  await octokit.repos.updateRelease({
-    owner,
-    repo,
-    release_id: draft.id,
-    tag_name: nextTag,
-    draft: true,
-    name: nextTag,
-    body: releaseNotes.body,
-    target_commitish: targetSha,
-  });
-  console.log(`✅ Updated draft release ${nextTag}`);
-}
-
-const releaseUrl = `https://github.com/${owner}/${repo}/releases/tag/${nextTag}`;
-console.log(`📝 Draft release URL: ${releaseUrl}`);
+console.log(`📝 Draft release URL: ${release.data.html_url}`);
