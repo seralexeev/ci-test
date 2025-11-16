@@ -43,7 +43,7 @@ const latestTag = await $`git tag -l ${prefix}/release/* | sort -V | tail -n 1`
 // discard the prefix part and parse the version (semver)
 const [, version] = z
   .tuple([z.string(), z.string()])
-  .parse(latestTag.split(`${prefix}/release`));
+  .parse(latestTag.split(`${prefix}/release/`));
 
 const [major, minor, patch] = z
   .tuple([z.coerce.number(), z.coerce.number(), z.coerce.number()])
