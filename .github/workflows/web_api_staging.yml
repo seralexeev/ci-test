@@ -5,11 +5,6 @@ on:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      sha:
-        description: "SHA to deploy (leave empty to use current HEAD of main)"
-        required: false
-        type: string
 
 concurrency:
   group: web-api-staging
@@ -32,29 +27,22 @@ jobs:
       - name: Determine target SHA
         id: target
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.sha }}" ]; then
-            TARGET_SHA="${{ inputs.sha }}"
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TARGET_SHA=$(git rev-parse origin/main)
-          else
-            TARGET_SHA="${{ github.sha }}"
-          fi
+          TARGET_SHA=$(git rev-parse origin/main)
           echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
-          echo "short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
 
       - name: Notify deployment start
         run: |
-          echo "Deploying web-api to STAGING @ ${{ steps.target.outputs.short }}"
-
+          echo "Deploying web-api to STAGING @ ${{ steps.target.outputs.sha_short }}"
       - name: Set up Docker Buildx
         run: |
-          echo "Building Docker image for web-api:${{ steps.target.outputs.short }}"
+          echo "Building Docker image for web-api:${{ steps.target.outputs.sha_short }}"
 
       - name: Deploy to staging
         id: deploy
         run: |
           echo "Deploying to staging environment..."
-          echo "Deploying web-api:${{ steps.target.outputs.short }}"
+          echo "Deploying web-api:${{ steps.target.outputs.sha_short }}"
           # Placeholder for actual deployment:
           # - kubectl apply / helm upgrade / docker-compose up
           # - Health checks
@@ -90,11 +78,10 @@ jobs:
       - name: Notify deployment success
         if: steps.deploy.outcome == 'success'
         run: |
-          echo "Deployed web-api to STAGING @ ${{ steps.target.outputs.short }}"
-
+          echo "Deployed web-api to STAGING @ ${{ steps.target.outputs.sha_short }}"
       - name: Notify deployment failure
         if: steps.deploy.outcome == 'failure'
         run: |
-          echo "Failed to deploy web-api to STAGING @ ${{ steps.target.outputs.short }}"
+          echo "Failed to deploy web-api to STAGING @ ${{ steps.target.outputs.sha_short }}"
           echo "No tags or draft release notes were updated"
           exit 1
