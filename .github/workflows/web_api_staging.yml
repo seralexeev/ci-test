@@ -83,7 +83,7 @@ jobs:
 
       - name: Update draft release
         if: steps.deploy.outcome == 'success'
-        run: ./scripts/src/ci_update_release_draft.ts web-api
+        run: node scripts/src/ci_update_release_draft.ts web-api
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
