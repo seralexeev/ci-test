@@ -23,7 +23,7 @@ const releaseTagInfo = await getReleaseTagInfo(prefix);
 
 // check if the release roll forward or roll backward
 const isRollForward =
-  await $`git merge-base --is-ancestor ${targetSha} ${prevSha}`
+  await $`git merge-base --is-ancestor ${prevSha} ${targetSha}`
     .then(() => true)
     .catch(() => false);
 
