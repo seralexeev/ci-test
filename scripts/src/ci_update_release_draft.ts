@@ -29,6 +29,10 @@ const latestTag = await $`git tag -l ${prefix}/release/* | sort -V | tail -n 1`
   .then((x) => x.stdout.trim())
   .then(z.string().min(1).parse);
 
+const targetSha = await $`git rev-parse ${prefix}/staging`
+  .then((x) => x.stdout.trim())
+  .then(z.string().min(1).parse);
+
 // discard the prefix part and parse the version (semver)
 const [, version] = z
   .tuple([z.string(), z.string()])
@@ -47,7 +51,7 @@ const { data: releaseNotes } = await octokit.repos.generateReleaseNotes({
   owner,
   repo,
   tag_name: nextTag,
-  target_commitish: `${prefix}/staging`,
+  target_commitish: targetSha,
   previous_tag_name: `${prefix}/production`,
 });
 
@@ -71,7 +75,7 @@ const release =
         name: nextTag,
         body: releaseNotes.body,
         draft: true,
-        target_commitish: `${prefix}/staging`,
+        target_commitish: targetSha,
       })
     : await octokit.repos.updateRelease({
         owner,
@@ -81,7 +85,7 @@ const release =
         draft: true,
         name: nextTag,
         body: releaseNotes.body,
-        target_commitish: `${prefix}/staging`,
+        target_commitish: targetSha,
       });
 
 console.log(`📝 Draft release URL: ${release.data.html_url}`);
