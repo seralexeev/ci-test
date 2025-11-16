@@ -6,7 +6,7 @@ import {
   getReleaseTagInfo,
   octokit,
   repoInfo,
-} from "./ci_util";
+} from "./ci_util.ts";
 
 // service name e.g., "web-api"
 const [prefix, prevSha] = z
