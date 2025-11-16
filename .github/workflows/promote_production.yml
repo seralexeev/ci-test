@@ -3,8 +3,8 @@ name: Promote to production
 on:
   workflow_dispatch:
     inputs:
-      sha:
-        description: "SHA to deploy (leave empty to use web-api/staging)"
+      version:
+        description: "Version to deploy, e.g., 0.0.3 (leave empty to use web-api/staging)"
         required: false
         type: string
 
@@ -26,17 +26,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine target SHA
+      - name: Determine target tag and SHA
         id: target
         run: |
-          if [ -n "${{ inputs.sha }}" ]; then
-            TARGET_SHA="${{ inputs.sha }}"
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            TARGET_TAG="web-api/release/${{ github.event.inputs.version }}"
           else
-            TARGET_SHA=$(git rev-parse web-api/staging)
+            TARGET_TAG=$(git rev-parse web-api/staging)
           fi
+
+          echo "tag=$TARGET_TAG" >> $GITHUB_OUTPUT
+          TARGET_SHA=$(git rev-parse $TARGET_TAG)
           echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
           echo "sha_short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
-          echo "prev_sha=$(git rev-parse web-api/production)" >> $GITHUB_OUTPUT
+          PREV_SHA=$(git rev-parse web-api/production^0)
+          echo "prev_sha=$PREV_SHA" >> $GITHUB_OUTPUT
 
       - name: Notify deployment start
         run: |
