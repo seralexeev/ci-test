@@ -36,10 +36,11 @@ jobs:
           fi
           echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
           echo "sha_short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
+          echo "prev_sha=$(git rev-parse web-api/production)" >> $GITHUB_OUTPUT
 
       - name: Notify deployment start
         run: |
-          echo "Deploying web-api to PRODUCTION @ ${{ steps.target.outputs.sha_short }} (prev @ ${{ steps.target.outputs.prod_short }})"
+          echo "Deploying web-api to PRODUCTION @ ${{ steps.target.outputs.sha_short }}"
 
       - name: Set up Docker Buildx
         run: |
@@ -77,7 +78,7 @@ jobs:
 
       - name: Publish draft release
         if: steps.deploy.outcome == 'success'
-        run: node scripts/src/ci_publish_release_draft.ts web-api
+        run: node scripts/src/ci_publish_release_draft.ts web-api ${{ steps.target.outputs.prev_sha }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
