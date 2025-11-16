@@ -59,7 +59,7 @@ const { data: releaseNotes } = await octokit.repos.generateReleaseNotes({
   owner,
   repo,
   tag_name: nextTag,
-  target_commitish: targetSha.substring(0, 7),
+  target_commitish: `${prefix}/staging`,
   previous_tag_name: productionTag,
 });
 
