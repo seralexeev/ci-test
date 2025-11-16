@@ -79,8 +79,7 @@ jobs:
       - name: Install dependencies
         if: steps.deploy.outcome == 'success'
         run: |
-          corepack enable
-          pnpm install --filter "scripts..." --frozen-lockfile
+          npm install
 
       - name: Update draft release
         if: steps.deploy.outcome == 'success'
