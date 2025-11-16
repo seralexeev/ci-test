@@ -29,7 +29,7 @@ const [owner, repo] = z
 // For drafts, we need to list releases and find by tag_name
 const { data: releases } = await octokit.repos.listReleases({ owner, repo });
 const [draft, ...extra] = releases.filter(
-  (release) => release.tag_name === `${prefix}/release/*` && release.draft
+  (release) => release.tag_name.startsWith(`${prefix}/release`) && release.draft
 );
 
 if (!draft) {
