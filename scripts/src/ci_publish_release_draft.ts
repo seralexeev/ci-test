@@ -27,12 +27,14 @@ const isRollForward =
     .then(() => true)
     .catch(() => false);
 
-const draft = await findDraftReleaseByTag(releaseTagInfo.next.tag);
-if (!draft) {
-  throw new Error(`No draft release found for tag ${releaseTagInfo.next.tag}`);
-}
-
 if (isRollForward) {
+  const draft = await findDraftReleaseByTag(releaseTagInfo.next.tag);
+  if (!draft) {
+    throw new Error(
+      `No draft release found for tag ${releaseTagInfo.next.tag}`
+    );
+  }
+
   // generate release notes from previous production SHA to target SHA (which is always staging here)
   const releaseNotesResponse = await octokit.repos.generateReleaseNotes({
     ...repoInfo,
