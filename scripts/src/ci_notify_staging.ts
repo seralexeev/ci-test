@@ -61,19 +61,11 @@ function buildMessage(status: typeof env.STATUS) {
         fields: [
           {
             type: "mrkdwn",
-            text: `*Status:*\n${config.emoji} ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+            text: `*Status:*\n${status.charAt(0).toUpperCase() + status.slice(1)}`,
           },
           {
             type: "mrkdwn",
             text: `*Environment:*\nStaging`,
-          },
-          {
-            type: "mrkdwn",
-            text: `*Time:*\n${timestamp}`,
-          },
-          {
-            type: "mrkdwn",
-            text: `*Workflow:*\n<${env.ACTION_URL}|View Run>`,
           },
         ],
       },
@@ -87,7 +79,7 @@ function buildMessage(status: typeof env.STATUS) {
         elements: [
           {
             type: "mrkdwn",
-            text: "🤖 Automated deployment notification | <https://github.com|GitHub Actions>",
+            text: `<${env.ACTION_URL}|View Workflow Run>`,
           },
         ],
       },
