@@ -17,17 +17,17 @@ const statusConfig = {
   started: {
     emoji: ":sherpa-excited:",
     title: "Staging Deployment Started",
-    color: "#2196F3", // Blue
+    color: "#2196F3",
   },
   success: {
     emoji: ":sherpa-sparkle:",
     title: "Staging Deployment Successful",
-    color: "#4CAF50", // Green
+    color: "#4CAF50",
   },
   failure: {
     emoji: ":sherpa-on-fire:",
     title: "Staging Deployment Failed",
-    color: "#F44336", // Red
+    color: "#F44336",
   },
 } as const;
 
