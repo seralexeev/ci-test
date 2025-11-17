@@ -20,7 +20,7 @@ const web = new WebClient(env.SLACK_TOKEN);
 
 const emojiMap: Record<typeof env.STATUS, string> = {
   started: ":sherpa-excited:",
-  success: ":sherpa-sparkle:",
+  success: ":large_green_circle:",
   failure: ":sherpa-on-fire:",
 };
 
@@ -34,7 +34,7 @@ const buildMessage = () => {
 
   const timeLabel = status === "started" ? "Started" : "Finished";
   const emoji = emojiMap[status];
-  const title = `${emoji} ${env.APP_NAME} [${environment}] deployment *${env.STATUS}*`;
+  const title = `${emoji} *${env.APP_NAME}* \`${environment}\` deployment *${env.STATUS}*`;
   const shaShort = env.SHA.substring(0, 7);
 
   return {
