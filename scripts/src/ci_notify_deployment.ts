@@ -3,6 +3,7 @@ import {
   type Block,
   type ContextBlockElement,
   type KnownBlock,
+  type RichTextSection,
   WebClient,
 } from "@slack/web-api";
 import z from "zod";
@@ -81,22 +82,42 @@ if (env.RELEASE_ID) {
     basehead: `${env.APP_NAME}/production...${env.APP_NAME}/staging`,
   });
 
+  const items: RichTextSection[] = [];
   for (const commit of comparison.data.commits) {
-    const { data: prs } =
-      await octokit.repos.listPullRequestsAssociatedWithCommit({
-        ...repoInfo,
-        commit_sha: commit.sha,
-      });
+    const prs = await octokit.repos.listPullRequestsAssociatedWithCommit({
+      ...repoInfo,
+      commit_sha: commit.sha,
+    });
 
-    for (const pr of prs) {
-      blocks.push({
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `• <${pr.html_url}|#${pr.number}> ${pr.title} (by @${pr.user?.login})`,
-        },
+    for (const pr of prs.data) {
+      items.push({
+        type: "rich_text_section",
+        elements: [
+          {
+            type: "link",
+            url: pr.html_url,
+            text: `#${pr.number}`,
+          },
+          {
+            type: "text",
+            text: ` ${pr.title} (by @${pr.user?.login})`,
+          },
+        ],
       });
     }
+  }
+
+  if (items.length > 0) {
+    blocks.push({
+      type: "rich_text",
+      elements: [
+        {
+          type: "rich_text_list",
+          style: "bullet",
+          elements: items,
+        },
+      ],
+    });
   }
 
   blocks.push({ type: "divider" });
