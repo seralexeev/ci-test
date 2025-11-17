@@ -4,6 +4,7 @@ import { $ } from "zx";
 
 const env = z
   .object({
+    APP_NAME: z.string().min(1),
     GITHUB_TOKEN: z.string().min(1),
     GITHUB_REPOSITORY: z.string().min(1),
   })
@@ -19,12 +20,13 @@ export const [owner, repo] = z
 
 export const repoInfo = { owner, repo };
 
-export const getReleaseTagInfo = async (prefix: string) => {
+export const getReleaseTagInfo = async () => {
+  const releasePrefix = `${env.APP_NAME}/release`;
+
   // get the latest tag with the given prefix
-  const latestTag =
-    await $`git tag -l ${prefix}/release/* | sort -V | tail -n 1`
-      .then((x) => x.stdout.trim())
-      .then(z.string().min(1).parse);
+  const latestTag = await $`git tag -l ${releasePrefix}/* | sort -V | tail -n 1`
+    .then((x) => x.stdout.trim())
+    .then(z.string().min(1).parse);
 
   const latestTagSha = await $`git rev-parse ${latestTag}`
     .then((x) => x.stdout.trim())
@@ -33,8 +35,9 @@ export const getReleaseTagInfo = async (prefix: string) => {
   // discard the prefix part and parse the version (semver)
   const [, currentVersion] = z
     .tuple([z.string(), z.string()])
-    .parse(latestTag.split(`${prefix}/release/`));
+    .parse(latestTag.split(`${releasePrefix}/`));
 
+  // parse the version into major, minor, patch
   const [major, minor, patch] = z
     .tuple([z.coerce.number(), z.coerce.number(), z.coerce.number()])
     .parse(currentVersion.split("."));
@@ -43,7 +46,7 @@ export const getReleaseTagInfo = async (prefix: string) => {
   const nextVersion = `${major}.${minor}.${patch + 1}`;
 
   // we always increment the patch for roll forward releases
-  const nextTag = `${prefix}/release/${nextVersion}`;
+  const nextTag = `${releasePrefix}/${nextVersion}`;
 
   return {
     current: {

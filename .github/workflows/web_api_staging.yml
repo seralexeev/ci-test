@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 concurrency:
   group: web-api-staging
@@ -12,7 +11,6 @@ concurrency:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   deploy-staging:
@@ -24,64 +22,61 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine target SHA
-        id: target
-        run: |
-          TARGET_SHA=$(git rev-parse origin/main)
-          echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
-          echo "sha_short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
-
-      - name: Notify deployment start
-        run: |
-          echo "Deploying web-api to STAGING @ ${{ steps.target.outputs.sha_short }}"
-      - name: Set up Docker Buildx
-        run: |
-          echo "Building Docker image for web-api:${{ steps.target.outputs.sha_short }}"
-
-      - name: Deploy to staging
-        id: deploy
-        run: |
-          echo "Deploying to staging environment..."
-          echo "Deploying web-api:${{ steps.target.outputs.sha_short }}"
-          # Placeholder for actual deployment:
-          # - kubectl apply / helm upgrade / docker-compose up
-          # - Health checks
-          # - Smoke tests
-          echo "Deployment successful"
-        continue-on-error: true
-
-      - name: Update floating staging tag
-        if: steps.deploy.outcome == 'success'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f web-api/staging ${{ steps.target.outputs.sha }}
-          git push -f origin web-api/staging
-
       - name: Setup Node.js
-        if: steps.deploy.outcome == 'success'
         uses: actions/setup-node@v6
         with:
           node-version: "24"
 
       - name: Install dependencies
-        if: steps.deploy.outcome == 'success'
         run: |
           npm install
 
+      - name: Determine target SHA
+        id: target
+        run: |
+          # For staging, we always deploy the latest main branch commit
+          TARGET_SHA=$(git rev-parse origin/main)
+
+          echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
+
+      - name: Notify deployment start
+        run: |
+          echo "Deploying web-api to STAGING @ ${{ steps.target.outputs.sha_short }} started"
+
+      - name: Build docker image
+        run: |
+          echo "Building Docker image for web-api:${{ steps.target.outputs.sha_short }}"
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          echo "Deploying web-api:${{ steps.target.outputs.sha_short }}"
+
+          # Placeholder for actual deployment:
+          # - Health checks
+          # - Smoke tests
+
+          echo "Deployment successful"
+
+      - name: Update floating staging branch
+        id: update_tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git push origin ${{ steps.target.outputs.sha }}:refs/heads/web-api/staging
+
       - name: Update draft release
-        if: steps.deploy.outcome == 'success'
-        run: node scripts/src/ci_update_release_draft.ts web-api
+        run: node scripts/src/ci_update_release_draft.ts
         env:
+          APP_NAME: "web-api"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Notify deployment success
-        if: steps.deploy.outcome == 'success'
-        run: |
-          echo "Deployed web-api to STAGING @ ${{ steps.target.outputs.sha_short }}"
-      - name: Notify deployment failure
-        if: steps.deploy.outcome == 'failure'
-        run: |
-          echo "Failed to deploy web-api to STAGING @ ${{ steps.target.outputs.sha_short }}"
-          echo "No tags or draft release notes were updated"
-          exit 1
+      - name: Notify deployment
+        if: always()
+        run: node scripts/src/ci_notify_deployment.ts
+        env:
+          APP_NAME: "web-api"
+          TARGET_ENV: "staging"
+          TARGET_SHA: "${{ steps.target.outputs.sha }}"
+          OUTCOME: "${{ steps.update_tag.outcome }}"
