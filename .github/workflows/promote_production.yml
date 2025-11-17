@@ -2,11 +2,6 @@ name: Promote to production
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to deploy, e.g., 0.0.3 (leave empty to use web-api/staging)"
-        required: false
-        type: string
 
 concurrency:
   group: web-api-production
@@ -14,7 +9,6 @@ concurrency:
 
 permissions:
   contents: write
-  packages: write
 
 jobs:
   promote-production:
@@ -26,74 +20,59 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Determine target tag and SHA
-        id: target
-        run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            TARGET_TAG="web-api/release/${{ github.event.inputs.version }}"
-          else
-            TARGET_TAG=$(git rev-parse web-api/staging)
-          fi
-
-          echo "tag=$TARGET_TAG" >> $GITHUB_OUTPUT
-          TARGET_SHA=$(git rev-parse $TARGET_TAG)
-          echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
-          echo "sha_short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
-          PREV_SHA=$(git rev-parse web-api/production^0)
-          echo "prev_sha=$PREV_SHA" >> $GITHUB_OUTPUT
-
-      - name: Notify deployment start
-        run: |
-          echo "Deploying web-api to PRODUCTION @ ${{ steps.target.outputs.sha_short }}"
-
-      - name: Set up Docker Buildx
-        run: |
-          echo "Building Docker image for web-api:${{ steps.target.outputs.sha_short }}"
-
-      - name: Deploy to production
-        id: deploy
-        run: |
-          echo "Deploying to production environment..."
-          echo "Deploying web-api:${{ steps.target.outputs.sha_short }}"
-          # Placeholder for actual deployment:
-          # - Health checks
-          # - Smoke tests
-          echo "Deployment successful"
-        continue-on-error: true
-
-      - name: Update floating production tag
-        if: steps.deploy.outcome == 'success'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f web-api/production ${{ steps.target.outputs.sha }}
-          git push -f origin web-api/production
-
       - name: Setup Node.js
-        if: steps.deploy.outcome == 'success'
         uses: actions/setup-node@v6
         with:
           node-version: "24"
 
       - name: Install dependencies
-        if: steps.deploy.outcome == 'success'
         run: |
           npm install
 
-      - name: Publish draft release
-        if: steps.deploy.outcome == 'success'
-        run: node scripts/src/ci_publish_release_draft.ts web-api ${{ steps.target.outputs.prev_sha }}
+      - name: Determine target tag and SHA
+        id: target
+        run: |
+          # For production, we deploy the commit currently tagged by the staging branch
+          TARGET_SHA=$(git rev-parse web-api/staging)
+          CURRENT_PROD_SHA=$(git rev-parse web-api/production)
+
+          if [ "$TARGET_SHA" = "$CURRENT_PROD_SHA" ]; then
+            echo "Production is already up to date with staging at $TARGET_SHA"
+            exit 0
+          fi
+
+          echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
+          echo "sha_short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
+
+      - name: Notify deployment start
+        run: |
+          echo "Deploying web-api to PRODUCTION @ ${{ steps.target.outputs.sha_short }} started"
+
+      - name: Update draft release
+        run: node scripts/src/ci_update_release_draft.ts
         env:
+          APP_NAME: "web-api"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Notify deployment success
-        if: steps.deploy.outcome == 'success'
+      - name: Deploy to production
         run: |
-          echo "Deployed web-api to PRODUCTION @ ${{ steps.target.outputs.sha_short }}"
+          echo "Deploying to production environment..."
+          echo "Deploying web-api:${{ steps.target.outputs.sha_short }}"
 
-      - name: Notify deployment failure
-        if: steps.deploy.outcome == 'failure'
+          # Placeholder for actual deployment:
+          # - Health checks
+          # - Smoke tests
+
+          echo "Deployment successful"
+
+      - name: Update floating production branch
+        id: update_tag
         run: |
-          echo "Failed to deploy web-api to PRODUCTION @ ${{ steps.target.outputs.sha_short }}"
-          echo "No tags or draft release notes were updated"
-          exit 1
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git push origin ${{ steps.target.outputs.sha }}:refs/heads/web-api/production
+
+      - name: Notify deployment
+        if: always()
+        run: |
+          echo "Deploying web-api to PRODUCTION @ ${{ steps.target.outputs.sha_short }} completed"

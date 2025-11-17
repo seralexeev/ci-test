@@ -8,18 +8,19 @@ import {
   repoInfo,
 } from "./ci_util.ts";
 
-// service name e.g., "web-api"
-const [prefix, prevSha] = z
-  .tuple([z.string().min(1), z.string().min(1)])
-  .parse(process.argv.slice(2));
+const env = z
+  .object({
+    APP_NAME: z.string().min(1),
+    PREV_SHA: z.string().min(1),
+  })
+  .parse(process.env);
+const releaseTagInfo = await getReleaseTagInfo();
 
 // sha of the current production deployment
 // the tag is updated in the previous step (github action)
 const targetSha = await $`git rev-parse ${prefix}/production`
   .then((x) => x.stdout.trim())
   .then(z.string().min(1).parse);
-
-const releaseTagInfo = await getReleaseTagInfo(prefix);
 
 // check if the release roll forward or roll backward
 const isRollForward =
