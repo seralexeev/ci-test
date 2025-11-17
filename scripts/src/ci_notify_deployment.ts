@@ -107,10 +107,15 @@ const footer: ContextBlockElement[] = [
   },
 ];
 
-if (env.RELEASE_ID == null) {
+if (env.RELEASE_ID == null && env.STATUS === "success") {
+  const workflowFileName = `${env.APP_NAME.replaceAll(
+    "-",
+    "_"
+  )}_production.yml`;
+
   footer.push({
     type: "mrkdwn",
-    text: `<${env.GITHUB_URL}/actions/workflows/${env.APP_NAME}_production.yml|Promote to production>`,
+    text: `<${env.GITHUB_URL}/actions/workflows/${workflowFileName}|Promote to production>`,
   });
 }
 
