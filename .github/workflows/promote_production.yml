@@ -72,7 +72,13 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git push origin ${{ steps.target.outputs.sha }}:refs/heads/web-api/production
 
+      - name: Update draft release
+        run: node scripts/src/ci_update_release_draft.ts
+        env:
+          APP_NAME: "web-api"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Notify deployment
         if: always()
         run: |
-          echo "Deploying web-api to PRODUCTION @ ${{ steps.target.outputs.sha_short }} completed"
+          echo "Deploying web-api to PRODUCTION @ ${{ steps.target.outputs.sha_short }} with status ${{ steps.update_tag.outcome }}"

@@ -74,9 +74,5 @@ jobs:
 
       - name: Notify deployment
         if: always()
-        run: node scripts/src/ci_notify_deployment.ts
-        env:
-          APP_NAME: "web-api"
-          TARGET_ENV: "staging"
-          TARGET_SHA: "${{ steps.target.outputs.sha }}"
-          OUTCOME: "${{ steps.update_tag.outcome }}"
+        run: |
+          echo "Deploying web-api to STAGING @ ${{ steps.target.outputs.sha_short }} with status ${{ steps.update_tag.outcome }}"
