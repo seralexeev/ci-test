@@ -18,6 +18,8 @@ const newStagingSha =
     .then((x) => x.stdout.trim())
     .then(z.string().min(1).parse);
 
+// GitHub releases require a tag reference to generate correct changelogs
+// so we need to update/create a tag pointing to the new staging SHA
 await octokit.git.updateRef({
   ...repoInfo,
   ref: `tags/web-api/draft`,
@@ -46,7 +48,7 @@ const params: RestEndpointMethodTypes["repos"]["createRelease"]["parameters"] =
   {
     ...repoInfo,
     tag_name: releaseTagInfo.next.tag,
-    name: releaseTagInfo.next.version,
+    name: releaseTagInfo.next.tag,
     draft: true,
     body: releaseNotes.data.body,
     // should be a commit (tags don't work for drafts)
