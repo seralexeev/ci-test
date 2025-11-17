@@ -94,3 +94,4 @@ jobs:
         env:
           STATUS: ${{ steps.update_tag.outcome }}
           MESSAGE_TS: ${{ steps.slack.outputs.message_ts }}
+          RELEASE_ID: "${{ steps.release_draft.outputs.release_id }}"
