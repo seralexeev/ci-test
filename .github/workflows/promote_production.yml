@@ -34,6 +34,10 @@ jobs:
         id: target
         run: |
           # For production, we deploy the commit currently tagged by the staging branch
+
+          # By default, github actions checkout only fetches a single branch
+          git fetch origin web-api/staging web-api/production
+
           TARGET_SHA=$(git rev-parse web-api/staging)
           CURRENT_PROD_SHA=$(git rev-parse web-api/production)
 
