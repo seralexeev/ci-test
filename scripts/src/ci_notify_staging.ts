@@ -34,7 +34,7 @@ const buildMessage = () => {
 
   const timeLabel = status === "started" ? "Started" : "Finished";
   const emoji = emojiMap[status];
-  const title = `${emoji} *${env.APP_NAME}* \`${environment}\` deployment *${env.STATUS}*`;
+  const title = `${emoji} *${env.APP_NAME}* [${environment}] deployment *${env.STATUS}*`;
   const shaShort = env.SHA.substring(0, 7);
 
   return {
@@ -46,8 +46,8 @@ const buildMessage = () => {
         type: "section",
         fields: [
           { type: "mrkdwn", text: `*App:*\n${env.APP_NAME}` },
-          { type: "mrkdwn", text: `*Environment:*\n\`${environment}\`` },
           { type: "mrkdwn", text: `*Status:*\n\`${status}\`` },
+          { type: "mrkdwn", text: `*Environment:*\n\`${environment}\`` },
           { type: "mrkdwn", text: `*${timeLabel}:*\n${timestamp}` },
         ],
       },
