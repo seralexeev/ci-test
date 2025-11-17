@@ -18,6 +18,12 @@ const newStagingSha =
     .then((x) => x.stdout.trim())
     .then(z.string().min(1).parse);
 
+await octokit.git.createRef({
+  ...repoInfo,
+  ref: `refs/tags/${releaseTagInfo.next.tag}`,
+  sha: newStagingSha,
+});
+
 // generate release notes from ${env.APP_NAME}/production -> ${env.APP_NAME}/staging
 //            feature/foo
 //            |  feature/bar feature/baz
@@ -33,6 +39,11 @@ const releaseNotes = await octokit.repos.generateReleaseNotes({
   // we always generate notes from production to staging
   target_commitish: newStagingSha,
   previous_tag_name: `${env.APP_NAME}/production`,
+});
+
+await octokit.git.deleteRef({
+  ...repoInfo,
+  ref: `tags/${releaseTagInfo.next.tag}`,
 });
 
 const params: RestEndpointMethodTypes["repos"]["createRelease"]["parameters"] =
