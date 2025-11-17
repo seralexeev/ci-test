@@ -1,4 +1,4 @@
-name: Promote to production
+name: Promote web-api to production
 
 on:
   workflow_dispatch:
@@ -9,7 +9,6 @@ concurrency:
 
 permissions:
   contents: write
-  actions: write
 
 jobs:
   promote-production:
@@ -30,11 +29,10 @@ jobs:
         run: |
           npm install
 
-      - name: Determine target tag and SHA
+      - name: Determine target SHA
         id: target
         run: |
           # For production, we deploy the commit currently tagged by the staging branch
-
           # By default, github actions checkout only fetches a single branch
           git fetch origin web-api/staging web-api/production
 

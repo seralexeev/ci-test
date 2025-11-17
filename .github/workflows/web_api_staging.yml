@@ -12,6 +12,13 @@ concurrency:
 permissions:
   contents: write
 
+env:
+  APP_NAME: "web-api"
+  URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  DEPLOYMENT_ENV: "staging"
+
 jobs:
   deploy-staging:
     runs-on: ubuntu-latest
@@ -41,8 +48,10 @@ jobs:
           echo "sha_short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
 
       - name: Notify deployment start
-        run: |
-          echo "Deploying web-api to STAGING @ ${{ steps.target.outputs.sha_short }} started"
+        id: slack
+        run: node scripts/src/ci_notify_slack.ts
+        env:
+          ACTION: "started"
 
       - name: Build docker image
         run: |
@@ -68,11 +77,9 @@ jobs:
 
       - name: Update draft release
         run: node scripts/src/ci_update_release_draft.ts
-        env:
-          APP_NAME: "web-api"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify deployment
         if: always()
-        run: |
-          echo "Deploying web-api to STAGING @ ${{ steps.target.outputs.sha_short }} with status ${{ steps.update_tag.outcome }}"
+        run: node scripts/src/ci_notify_slack.ts
+        env:
+          STATUS: ${{ steps.update_tag.outcome }}
