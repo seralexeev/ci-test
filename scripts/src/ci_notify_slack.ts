@@ -24,7 +24,7 @@ const md = `
 `;
 
 const res = await web.chat.postMessage({
-  channel: "C12345678",
+  channel: "C09TFU78Y3S",
   text: "Release deployed",
   mrkdwn: true,
   blocks: [
