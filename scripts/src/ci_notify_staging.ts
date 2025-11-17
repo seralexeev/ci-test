@@ -57,17 +57,17 @@ const buildMessage = () => {
         fields: [
           {
             type: "mrkdwn",
-            text: `App:\n*web-api*`,
+            text: `App:\n\`web-api\``,
           },
           {
             type: "mrkdwn",
-            text: `Environment:\n*staging*`,
+            text: `Environment:\n\`staging\``,
           },
           {
             type: "mrkdwn",
-            text: `Status:\n*${
+            text: `Status:\n\`${
               status.charAt(0).toUpperCase() + status.slice(1)
-            }*`,
+            }\``,
           },
           {
             type: "mrkdwn",
@@ -81,13 +81,14 @@ const buildMessage = () => {
         elements: [
           {
             type: "mrkdwn",
-            text: `<${env.GITHUB_URL}/actions/runs/${env.RUN_ID}|View Workflow Run>`,
+            text: `<${env.GITHUB_URL}/actions/runs/${env.RUN_ID}|Workflow>`,
           },
           {
             type: "mrkdwn",
-            text: `<${env.GITHUB_URL}/commit/${
-              env.SHA
-            }|View Commit> ${env.SHA.substring(0, 7)}`,
+            text: `<${env.GITHUB_URL}/commit/${env.SHA}|${env.SHA.substring(
+              0,
+              7
+            )}>`,
           },
         ],
       },
