@@ -18,16 +18,19 @@ const statusConfig = {
     emoji: ":sherpa-excited:",
     title: "Staging Deployment Started",
     color: "#2196F3", // Blue
+    statusEmoji: "🔵",
   },
   success: {
     emoji: ":sherpa-sparkle:",
     title: "Staging Deployment Successful",
     color: "#4CAF50", // Green
+    statusEmoji: "🟢",
   },
   failure: {
     emoji: ":sherpa-on-fire:",
     title: "Staging Deployment Failed",
     color: "#F44336", // Red
+    statusEmoji: "🔴",
   },
 } as const;
 
@@ -70,7 +73,7 @@ function buildMessage(status: typeof env.STATUS) {
           },
           {
             type: "mrkdwn",
-            text: `Status:\n*${
+            text: `Status:\n${config.statusEmoji} *${
               status.charAt(0).toUpperCase() + status.slice(1)
             }*`,
           },
