@@ -33,11 +33,6 @@ const statusConfig = {
 
 function buildMessage(status: typeof env.STATUS) {
   const config = statusConfig[status];
-  const timestamp = new Date().toLocaleString("en-US", {
-    timeZone: "America/Los_Angeles",
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
 
   return {
     text: `${config.emoji} ${config.title}`, // Fallback text
@@ -104,7 +99,7 @@ if (env.STATUS === "started") {
     throw new Error(`Failed to send Slack notification: ${res.error}`);
   }
 
-  setOutput("slack_ts", res.ts);
+  setOutput("message_ts", res.ts);
 } else {
   if (env.MESSAGE_TS == null) {
     throw new Error(`MESSAGE_TS is required when STATUS is ${env.STATUS}`);
