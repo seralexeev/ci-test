@@ -6,7 +6,6 @@ import {
 } from "./ci_util.ts";
 
 const releaseTagInfo = await getReleaseTagInfo();
-
 const draft = await findDraftReleaseByTag(releaseTagInfo.next.tag);
 if (!draft) {
   throw new Error(`No draft release found for tag ${releaseTagInfo.next.tag}`);

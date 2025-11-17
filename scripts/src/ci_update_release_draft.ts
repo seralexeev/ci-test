@@ -1,3 +1,4 @@
+import { setOutput } from "@actions/core";
 import { type RestEndpointMethodTypes } from "@octokit/rest";
 import z from "zod";
 import { $ } from "zx";
@@ -61,4 +62,4 @@ const release =
     ? await octokit.repos.createRelease({ ...params })
     : await octokit.repos.updateRelease({ ...params, release_id: draft.id });
 
-console.log(`Draft release URL: ${release.data.html_url}`);
+setOutput("release_id", release.data.id);

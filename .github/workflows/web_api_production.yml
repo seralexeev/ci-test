@@ -10,6 +10,15 @@ concurrency:
 permissions:
   contents: write
 
+env:
+  APP_NAME: "web-api"
+  RUN_ID: "${{ github.run_id }}"
+  GITHUB_URL: "${{ github.server_url }}/${{ github.repository }}"
+  SLACK_TOKEN: "${{ secrets.SLACK_TOKEN }}"
+  GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+  SHA: "${{ github.sha }}"
+  DEPLOY_ENV: "production"
+
 jobs:
   promote-production:
     runs-on: ubuntu-latest
@@ -47,15 +56,16 @@ jobs:
           echo "sha=$TARGET_SHA" >> $GITHUB_OUTPUT
           echo "sha_short=$(git rev-parse --short $TARGET_SHA)" >> $GITHUB_OUTPUT
 
-      - name: Notify deployment start
-        run: |
-          echo "Deploying web-api to PRODUCTION @ ${{ steps.target.outputs.sha_short }} started"
-
       - name: Update draft release
+        id: release_draft
         run: node scripts/src/ci_update_release_draft.ts
+
+      - name: Notify deployment start
+        id: slack
+        run: node scripts/src/ci_notify_deployment.ts
         env:
-          APP_NAME: "web-api"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STATUS: "started"
+          RELEASE_ID: "${{ steps.release_draft.outputs.release_id }}"
 
       - name: Deploy to production
         run: |
@@ -77,9 +87,6 @@ jobs:
 
       - name: Update draft release
         run: node scripts/src/ci_publish_release_draft.ts
-        env:
-          APP_NAME: "web-api"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify deployment
         if: always()
