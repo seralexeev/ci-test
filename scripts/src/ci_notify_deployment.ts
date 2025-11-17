@@ -1,5 +1,10 @@
 import { setOutput } from "@actions/core";
-import { type Block, type KnownBlock, WebClient } from "@slack/web-api";
+import {
+  type Block,
+  ContextBlockElement,
+  type KnownBlock,
+  WebClient,
+} from "@slack/web-api";
 import z from "zod";
 import { octokit, repoInfo } from "./ci_util.ts";
 
@@ -91,18 +96,27 @@ if (env.RELEASE_ID) {
   blocks.push({ type: "divider" });
 }
 
+const footer: ContextBlockElement[] = [
+  {
+    type: "mrkdwn",
+    text: `<${env.GITHUB_URL}/actions/runs/${env.RUN_ID}|Workflow>`,
+  },
+  {
+    type: "mrkdwn",
+    text: `<${env.GITHUB_URL}/commit/${env.SHA}|${shaShort}>`,
+  },
+];
+
+if (env.RELEASE_ID == null) {
+  footer.push({
+    type: "mrkdwn",
+    text: `<${env.GITHUB_URL}/actions/workflows/${env.APP_NAME}_production.yml|Promote to production>`,
+  });
+}
+
 blocks.push({
   type: "context",
-  elements: [
-    {
-      type: "mrkdwn",
-      text: `<${env.GITHUB_URL}/actions/runs/${env.RUN_ID}|Workflow>`,
-    },
-    {
-      type: "mrkdwn",
-      text: `<${env.GITHUB_URL}/commit/${env.SHA}|${shaShort}>`,
-    },
-  ],
+  elements: footer,
 });
 
 if (env.STATUS === "started") {
