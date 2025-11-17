@@ -20,7 +20,7 @@ const web = new WebClient(env.SLACK_TOKEN);
 
 const emojiMap: Record<typeof env.STATUS, string> = {
   started: ":sherpa-excited:",
-  success: ":large_green_circle:",
+  success: ":sherpa-sparkle:",
   failure: ":sherpa-on-fire:",
 };
 
@@ -45,10 +45,10 @@ const buildMessage = () => {
       {
         type: "section",
         fields: [
-          { type: "mrkdwn", text: `App:\n*${env.APP_NAME}*` },
-          { type: "mrkdwn", text: `Environment:\n*${environment}*` },
-          { type: "mrkdwn", text: `Status:\n*${status}*` },
-          { type: "mrkdwn", text: `${timeLabel}:\n*${timestamp}*` },
+          { type: "mrkdwn", text: `*App:*\n${env.APP_NAME}` },
+          { type: "mrkdwn", text: `*Environment:*\n\`${environment}\`` },
+          { type: "mrkdwn", text: `*Status:*\n\`${status}\`` },
+          { type: "mrkdwn", text: `*${timeLabel}:*\n${timestamp}` },
         ],
       },
       { type: "divider" },
