@@ -76,13 +76,28 @@ if (env.RELEASE_ID) {
     },
   });
 
-  blocks.push({
-    type: "section",
-    text: {
-      type: "mrkdwn",
-      text: release.body ?? "_No release notes available_",
-    },
+  const comparison = await octokit.repos.compareCommitsWithBasehead({
+    ...repoInfo,
+    basehead: `${env.APP_NAME}/production...${env.APP_NAME}/staging`,
   });
+
+  for (const commit of comparison.data.commits) {
+    const { data: prs } =
+      await octokit.repos.listPullRequestsAssociatedWithCommit({
+        ...repoInfo,
+        commit_sha: commit.sha,
+      });
+
+    for (const pr of prs) {
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `• <${pr.html_url}|#${pr.number}> ${pr.title} (by @${pr.user?.login})`,
+        },
+      });
+    }
+  }
 
   blocks.push({ type: "divider" });
 }
