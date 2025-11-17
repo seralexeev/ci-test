@@ -8,6 +8,7 @@ const env = z
     SLACK_TOKEN: z.string().min(1),
     STATUS: z.enum(["started", "success", "failure"]),
     MESSAGE_TS: z.string().optional(),
+    SHA: z.string().min(1),
   })
   .parse(process.env);
 
@@ -16,47 +17,32 @@ const web = new WebClient(env.SLACK_TOKEN);
 const statusConfig = {
   started: {
     emoji: ":sherpa-excited:",
-    title: "Staging Deployment Started",
-    color: "#2196F3",
+    title: "[staging] deployment started",
   },
   success: {
     emoji: ":sherpa-sparkle:",
-    title: "Staging Deployment Successful",
-    color: "#4CAF50",
+    title: "[staging] deployment successful",
   },
   failure: {
     emoji: ":sherpa-on-fire:",
-    title: "Staging Deployment Failed",
-    color: "#F44336",
+    title: "[staging] deployment failed",
   },
 } as const;
 
-function buildMessage(status: typeof env.STATUS) {
+const buildMessage = () => {
+  const status = env.STATUS;
   const config = statusConfig[status];
   const timestamp = new Date().toLocaleString("en-AU", {
     timeZone: "Australia/Sydney",
     dateStyle: "medium",
     timeStyle: "short",
   });
+
   const timeLabel = status === "started" ? "Started" : "Finished";
 
   return {
-    text: `${config.emoji} ${config.title}`, // Fallback text
+    text: `${config.emoji} ${config.title}`,
     blocks: [
-      // Header
-      {
-        type: "header",
-        text: {
-          type: "plain_text",
-          text: `${config.emoji} ${config.title}`,
-          emoji: true,
-        },
-      },
-      // Divider
-      {
-        type: "divider",
-      },
-      // Body - Deployment Details
       {
         type: "section",
         fields: [
@@ -66,7 +52,7 @@ function buildMessage(status: typeof env.STATUS) {
           },
           {
             type: "mrkdwn",
-            text: `Environment:\n*Staging*`,
+            text: `Environment:\n*staging*`,
           },
           {
             type: "mrkdwn",
@@ -80,11 +66,7 @@ function buildMessage(status: typeof env.STATUS) {
           },
         ],
       },
-      // Divider
-      {
-        type: "divider",
-      },
-      // Footer
+      { type: "divider" },
       {
         type: "context",
         elements: [
@@ -92,20 +74,18 @@ function buildMessage(status: typeof env.STATUS) {
             type: "mrkdwn",
             text: `<${env.ACTION_URL}|View Workflow Run>`,
           },
+          {
+            type: "mrkdwn",
+            text: `<${env.SHA}|View Commit> ${env.SHA.substring(0, 7)}`,
+          },
         ],
       },
     ],
-    attachments: [
-      {
-        color: config.color,
-        blocks: [],
-      },
-    ],
   };
-}
+};
 
 if (env.STATUS === "started") {
-  const message = buildMessage(env.STATUS);
+  const message = buildMessage();
   const res = await web.chat.postMessage({
     channel: "C09TFU78Y3S",
     ...message,
@@ -121,7 +101,7 @@ if (env.STATUS === "started") {
     throw new Error(`MESSAGE_TS is required when STATUS is ${env.STATUS}`);
   }
 
-  const message = buildMessage(env.STATUS);
+  const message = buildMessage();
   await web.chat.update({
     channel: "C09TFU78Y3S",
     ts: env.MESSAGE_TS,
