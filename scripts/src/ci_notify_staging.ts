@@ -62,21 +62,21 @@ function buildMessage(status: typeof env.STATUS) {
         fields: [
           {
             type: "mrkdwn",
-            text: `*App:*\nweb-api`,
+            text: `App:\n*web-api*`,
           },
           {
             type: "mrkdwn",
-            text: `*Environment:*\nStaging`,
+            text: `Environment:\n*Staging*`,
           },
           {
             type: "mrkdwn",
-            text: `*Status:*\n${
+            text: `Status:\n*${
               status.charAt(0).toUpperCase() + status.slice(1)
-            }`,
+            }*`,
           },
           {
             type: "mrkdwn",
-            text: `*${timeLabel}:*\n${timestamp}`,
+            text: `${timeLabel}:\n*${timestamp}*`,
           },
         ],
       },
