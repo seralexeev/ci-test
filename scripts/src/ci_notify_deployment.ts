@@ -1,7 +1,7 @@
 import { setOutput } from "@actions/core";
 import { Block, KnownBlock, WebClient } from "@slack/web-api";
 import z from "zod";
-import { octokit, repoInfo } from "./ci_util";
+import { octokit, repoInfo } from "./ci_util.ts";
 
 const env = z
   .object({
