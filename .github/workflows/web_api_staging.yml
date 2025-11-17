@@ -14,10 +14,11 @@ permissions:
 
 env:
   APP_NAME: "web-api"
-  ACTION_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-  SLACK_TOKEN: ${{ secrets.SLACK_TOKEN }}
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  SHA: ${{ github.sha }}
+  RUN_ID: "${{ github.run_id }}"
+  GITHUB_URL: "${{ github.server_url }}/${{ github.repository }}"
+  SLACK_TOKEN: "${{ secrets.SLACK_TOKEN }}"
+  GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+  SHA: "${{ github.sha }}"
 
 jobs:
   deploy-staging:

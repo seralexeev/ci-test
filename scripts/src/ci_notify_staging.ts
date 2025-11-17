@@ -4,7 +4,8 @@ import z from "zod";
 
 const env = z
   .object({
-    ACTION_URL: z.string().min(1),
+    RUN_ID: z.string().min(1),
+    GITHUB_URL: z.string().min(1),
     SLACK_TOKEN: z.string().min(1),
     STATUS: z.enum(["started", "success", "failure"]),
     MESSAGE_TS: z.string().optional(),
@@ -45,6 +46,14 @@ const buildMessage = () => {
     blocks: [
       {
         type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `${config.emoji} *${config.title}*`,
+        },
+      },
+      { type: "divider" },
+      {
+        type: "section",
         fields: [
           {
             type: "mrkdwn",
@@ -72,11 +81,13 @@ const buildMessage = () => {
         elements: [
           {
             type: "mrkdwn",
-            text: `<${env.ACTION_URL}|View Workflow Run>`,
+            text: `<${env.GITHUB_URL}/actions/runs/${env.RUN_ID}|View Workflow Run>`,
           },
           {
             type: "mrkdwn",
-            text: `<${env.SHA}|View Commit> ${env.SHA.substring(0, 7)}`,
+            text: `<${env.GITHUB_URL}/commit/${
+              env.SHA
+            }|View Commit> ${env.SHA.substring(0, 7)}`,
           },
         ],
       },
