@@ -23,6 +23,27 @@ const md = `
 **Full Changelog**: https://github.com/seralexeev/ci-test/compare/web-api/release/0.0.5...tags/web-api/draft
 `;
 
+function convertGitHubMarkdownToSlack(markdown: string) {
+  let converted = markdown;
+
+  // Convert headers (## Header -> *Header*)
+  converted = converted.replace(/^##\s+(.+)$/gm, "*$1*\n");
+
+  // Convert markdown links [text](url) to Slack format <url|text>
+  converted = converted.replace(/\[([^\]]+)\]\(([^)]+)\)/g, "<$2|$1>");
+
+  // Convert bold **text** to *text* (Slack uses single asterisks)
+  converted = converted.replace(/\*\*([^*]+)\*\*/g, "*$1*");
+
+  // Clean up excessive newlines (more than 2 consecutive)
+  converted = converted.replace(/\n{3,}/g, "\n\n");
+
+  // Trim whitespace
+  converted = converted.trim();
+
+  return converted;
+}
+
 const res = await web.chat.postMessage({
   channel: "C09TFU78Y3S",
   text: "Release deployed",
@@ -34,7 +55,7 @@ const res = await web.chat.postMessage({
     },
     {
       type: "section",
-      text: { type: "mrkdwn", text: md },
+      text: { type: "mrkdwn", text: convertGitHubMarkdownToSlack(md) },
     },
   ],
 });
