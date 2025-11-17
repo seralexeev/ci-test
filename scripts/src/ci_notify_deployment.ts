@@ -1,7 +1,7 @@
 import { setOutput } from "@actions/core";
 import {
   type Block,
-  ContextBlockElement,
+  type ContextBlockElement,
   type KnownBlock,
   WebClient,
 } from "@slack/web-api";
