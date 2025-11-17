@@ -82,4 +82,4 @@ jobs:
         run: node scripts/src/ci_notify_staging.ts
         env:
           STATUS: ${{ steps.update_tag.outcome }}
-          MESSAGE_TS: ${{ steps.slack.outputs.ts }}
+          MESSAGE_TS: ${{ steps.slack.outputs.message_ts }}

@@ -33,6 +33,12 @@ const statusConfig = {
 
 function buildMessage(status: typeof env.STATUS) {
   const config = statusConfig[status];
+  const timestamp = new Date().toLocaleString("en-AU", {
+    timeZone: "Australia/Sydney",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  const timeLabel = status === "started" ? "Started" : "Finished";
 
   return {
     text: `${config.emoji} ${config.title}`, // Fallback text
@@ -56,11 +62,21 @@ function buildMessage(status: typeof env.STATUS) {
         fields: [
           {
             type: "mrkdwn",
-            text: `*Status:*\n${status.charAt(0).toUpperCase() + status.slice(1)}`,
+            text: `*App:*\nweb-api`,
           },
           {
             type: "mrkdwn",
             text: `*Environment:*\nStaging`,
+          },
+          {
+            type: "mrkdwn",
+            text: `*Status:*\n${
+              status.charAt(0).toUpperCase() + status.slice(1)
+            }`,
+          },
+          {
+            type: "mrkdwn",
+            text: `*${timeLabel}:*\n${timestamp}`,
           },
         ],
       },
