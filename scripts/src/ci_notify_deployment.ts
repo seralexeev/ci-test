@@ -72,25 +72,16 @@ if (env.RELEASE_ID) {
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `:page_facing_up: <${draftReleaseUrl}|Release for ${env.APP_NAME} - ${release.tag_name}>`,
+      text: `<${draftReleaseUrl}|Release ${env.APP_NAME} - ${release.tag_name}>`,
     },
   });
 
-  blocks.push({ type: "divider" });
-
-  const mrkdwn = (release.body ?? "_No release notes available_")
-    // Headings (#, ##, ###) → *Heading*
-    .replace(/^###\s+(.*)$/gm, "*$1*")
-    .replace(/^##\s+(.*)$/gm, "*$1*")
-    .replace(/^#\s+(.*)$/gm, "*$1*")
-    // Bold **text** → *text*
-    .replace(/\*\*(.+?)\*\*/g, "*$1*")
-    // Bullet lists: "* item" or "- item" → "• item"
-    .replace(/^[*-]\s+/gm, "• ");
-
   blocks.push({
     type: "section",
-    text: { type: "mrkdwn", text: mrkdwn },
+    text: {
+      type: "mrkdwn",
+      text: release.body ?? "_No release notes available_",
+    },
   });
 
   blocks.push({ type: "divider" });
