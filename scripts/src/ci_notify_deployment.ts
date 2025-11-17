@@ -73,12 +73,19 @@ if (env.RELEASE_ID) {
 
   blocks.push({ type: "divider" });
 
+  const mrkdwn = (release.body ?? "_No release notes available_")
+    // Headings (#, ##, ###) → *Heading*
+    .replace(/^###\s+(.*)$/gm, "*$1*")
+    .replace(/^##\s+(.*)$/gm, "*$1*")
+    .replace(/^#\s+(.*)$/gm, "*$1*")
+    // Bold **text** → *text*
+    .replace(/\*\*(.+?)\*\*/g, "*$1*")
+    // Bullet lists: "* item" or "- item" → "• item"
+    .replace(/^[*-]\s+/gm, "• ");
+
   blocks.push({
     type: "section",
-    text: {
-      type: "mrkdwn",
-      text: release.body ?? "_No release notes available_",
-    },
+    text: { type: "mrkdwn", text: mrkdwn },
   });
 
   blocks.push({ type: "divider" });
