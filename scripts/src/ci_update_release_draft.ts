@@ -40,7 +40,7 @@ const releaseNotes = await octokit.repos.generateReleaseNotes({
   tag_name: `tags/web-api/draft`,
   // we always generate notes from production to staging
   target_commitish: stagingSha,
-  previous_tag_name: `${env.APP_NAME}/production`,
+  previous_tag_name: releaseTagInfo.current.tag,
 });
 
 const params: RestEndpointMethodTypes["repos"]["createRelease"]["parameters"] =
