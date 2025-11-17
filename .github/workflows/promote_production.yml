@@ -70,7 +70,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git push origin ${{ steps.target.outputs.sha }}:refs/heads/web-api/production
+          git push --force origin ${{ steps.target.outputs.sha }}:refs/heads/web-api/production
 
       - name: Update draft release
         run: node scripts/src/ci_publish_release_draft.ts
