@@ -38,8 +38,8 @@ jobs:
           # By default, github actions checkout only fetches a single branch
           git fetch origin web-api/staging web-api/production
 
-          TARGET_SHA=$(git rev-parse web-api/staging)
-          CURRENT_PROD_SHA=$(git rev-parse web-api/production)
+          TARGET_SHA=$(git rev-parse origin/web-api/staging)
+          CURRENT_PROD_SHA=$(git rev-parse origin/web-api/production)
 
           if [ "$TARGET_SHA" = "$CURRENT_PROD_SHA" ]; then
             echo "Production is already up to date with staging at $TARGET_SHA"
