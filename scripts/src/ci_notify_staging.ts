@@ -4,6 +4,7 @@ import z from "zod";
 
 const env = z
   .object({
+    APP_NAME: z.string().min(1),
     RUN_ID: z.string().min(1),
     GITHUB_URL: z.string().min(1),
     SLACK_TOKEN: z.string().min(1),
@@ -13,26 +14,18 @@ const env = z
   })
   .parse(process.env);
 
+const environment = "staging";
+const channel = "C09TFU78Y3S";
 const web = new WebClient(env.SLACK_TOKEN);
 
-const statusConfig = {
-  started: {
-    emoji: ":sherpa-excited:",
-    title: "[staging] deployment started",
-  },
-  success: {
-    emoji: ":sherpa-sparkle:",
-    title: "[staging] deployment successful",
-  },
-  failure: {
-    emoji: ":sherpa-on-fire:",
-    title: "[staging] deployment failed",
-  },
-} as const;
+const emojiMap: Record<typeof env.STATUS, string> = {
+  started: ":sherpa-excited:",
+  success: ":sherpa-sparkle:",
+  failure: ":sherpa-on-fire:",
+};
 
 const buildMessage = () => {
   const status = env.STATUS;
-  const config = statusConfig[status];
   const timestamp = new Date().toLocaleString("en-AU", {
     timeZone: "Australia/Sydney",
     dateStyle: "medium",
@@ -40,39 +33,22 @@ const buildMessage = () => {
   });
 
   const timeLabel = status === "started" ? "Started" : "Finished";
+  const emoji = emojiMap[status];
+  const title = `${emoji} ${env.APP_NAME} [${environment}] deployment *${env.STATUS}*`;
+  const shaShort = env.SHA.substring(0, 7);
 
   return {
-    text: `${config.emoji} ${config.title}`,
+    text: title,
     blocks: [
-      {
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `${config.emoji} *${config.title}*`,
-        },
-      },
+      { type: "section", text: { type: "mrkdwn", text: title } },
       { type: "divider" },
       {
         type: "section",
         fields: [
-          {
-            type: "mrkdwn",
-            text: `App:\n\`web-api\``,
-          },
-          {
-            type: "mrkdwn",
-            text: `Environment:\n\`staging\``,
-          },
-          {
-            type: "mrkdwn",
-            text: `Status:\n\`${
-              status.charAt(0).toUpperCase() + status.slice(1)
-            }\``,
-          },
-          {
-            type: "mrkdwn",
-            text: `${timeLabel}:\n*${timestamp}*`,
-          },
+          { type: "mrkdwn", text: `App:\n*${env.APP_NAME}*` },
+          { type: "mrkdwn", text: `Environment:\n*${environment}*` },
+          { type: "mrkdwn", text: `Status:\n*${status}*` },
+          { type: "mrkdwn", text: `${timeLabel}:\n*${timestamp}*` },
         ],
       },
       { type: "divider" },
@@ -85,10 +61,7 @@ const buildMessage = () => {
           },
           {
             type: "mrkdwn",
-            text: `<${env.GITHUB_URL}/commit/${env.SHA}|${env.SHA.substring(
-              0,
-              7
-            )}>`,
+            text: `<${env.GITHUB_URL}/commit/${env.SHA}|${shaShort}>`,
           },
         ],
       },
@@ -98,11 +71,7 @@ const buildMessage = () => {
 
 if (env.STATUS === "started") {
   const message = buildMessage();
-  const res = await web.chat.postMessage({
-    channel: "C09TFU78Y3S",
-    ...message,
-  });
-
+  const res = await web.chat.postMessage({ channel, ...message });
   if (res.ts == null) {
     throw new Error(`Failed to send Slack notification: ${res.error}`);
   }
@@ -114,9 +83,13 @@ if (env.STATUS === "started") {
   }
 
   const message = buildMessage();
-  await web.chat.update({
-    channel: "C09TFU78Y3S",
+  const res = await web.chat.update({
+    channel,
     ts: env.MESSAGE_TS,
     ...message,
   });
+
+  if (res.ok === false) {
+    throw new Error(`Failed to update Slack notification: ${res.error}`);
+  }
 }
